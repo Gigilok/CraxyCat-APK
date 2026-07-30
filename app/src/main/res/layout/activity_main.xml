@@ -71,6 +71,7 @@
         android:orientation="horizontal"
         android:layout_marginBottom="6dp">
 
+        <!-- Card 1: SUB-GHz -->
         <LinearLayout
             android:id="@+id/cardSubGhz"
             android:layout_width="0dp"
@@ -111,6 +112,7 @@
                 android:textSize="10sp"/>
         </LinearLayout>
 
+        <!-- Card 2: NRF24 -->
         <LinearLayout
             android:id="@+id/cardNrf24"
             android:layout_width="0dp"
@@ -161,6 +163,7 @@
         android:layout_marginTop="6dp"
         android:layout_marginBottom="6dp">
 
+        <!-- Card 3: Bluetooth -->
         <LinearLayout
             android:id="@+id/cardBluetooth"
             android:layout_width="0dp"
@@ -201,6 +204,7 @@
                 android:textSize="10sp"/>
         </LinearLayout>
 
+        <!-- Card 4: WiFi -->
         <LinearLayout
             android:id="@+id/cardWifi"
             android:layout_width="0dp"
@@ -242,7 +246,7 @@
         </LinearLayout>
     </LinearLayout>
 
-    <!-- Card 5: ATAQUES -->
+    <!-- Card 5: ATAQUES (largura total) -->
     <LinearLayout
         android:id="@+id/cardAtaques"
         android:layout_width="match_parent"
