@@ -35,5 +35,14 @@
                 android:value=".MainActivity"/>
         </activity>
 
+        <activity
+            android:name=".ToolViewerActivity"
+            android:theme="@style/Theme.AppCompat.Light.DarkActionBar"
+            android:parentActivityName=".ToolsActivity">
+            <meta-data
+                android:name="android.support.PARENT_ACTIVITY"
+                android:value=".ToolsActivity"/>
+        </activity>
+
     </application>
 </manifest>
