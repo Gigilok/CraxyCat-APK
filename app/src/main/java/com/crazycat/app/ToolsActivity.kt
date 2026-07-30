@@ -7,7 +7,6 @@ import android.widget.LinearLayout
 import android.widget.TextView
 import android.widget.Toast
 import androidx.appcompat.app.AppCompatActivity
-import androidx.lifecycle.lifecycleScope
 import com.crazycat.app.api.Esp32Client
 import kotlinx.coroutines.launch
 
@@ -51,6 +50,7 @@ class ToolsActivity : AppCompatActivity() {
             findViewById<TextView>(R.id.tvTool8)
         )
 
+        // Hide all
         btns.forEach { it.visibility = View.GONE }
 
         fun tool(btn: View, tv: TextView, label: String, tool: String, mode: String, param: Int = 0) {
@@ -71,7 +71,7 @@ class ToolsActivity : AppCompatActivity() {
             btn.visibility = View.VISIBLE
             btn.setOnClickListener {
                 lifecycleScope.launch {
-                    actions.forEach { action -> action() }
+                    actions.forEach { it() }
                     Toast.makeText(this@ToolsActivity, "Parado!", Toast.LENGTH_SHORT).show()
                     finish()
                 }
