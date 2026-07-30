@@ -14,6 +14,7 @@ import androidx.lifecycle.lifecycleScope
 import com.crazycat.app.api.Esp32Client
 import kotlinx.coroutines.launch
 
+
 class MainActivity : AppCompatActivity() {
 
     private lateinit var tvStatus: TextView
@@ -59,6 +60,7 @@ class MainActivity : AppCompatActivity() {
 
     private fun setupCard(cardId: Int, category: String) {
         val card = findViewById<LinearLayout>(cardId)
+
         card.setOnClickListener { view ->
             if (!isConnected) {
                 view.alpha = 0.5f
@@ -69,6 +71,7 @@ class MainActivity : AppCompatActivity() {
             intent.putExtra("CATEGORY", category)
             startActivity(intent)
         }
+
         card.setOnTouchListener { view, event ->
             when (event.action) {
                 android.view.MotionEvent.ACTION_DOWN -> {
@@ -94,13 +97,14 @@ class MainActivity : AppCompatActivity() {
                 lifecycleScope.launch {
                     val connected = Esp32Client.checkConnection()
                     isConnected = connected
+
                     if (connected) {
                         updateStatusUI(true, "Crazy Cat Online")
                         retryCount = 0
                         stopConnectionCheck()
                     } else {
                         retryCount++
-                        updateStatusUI(false, "ESP32 Offline · Tentativa $retryCount")
+                        updateStatusUI(false, "ESP32 Offline \u00b7 Tentativa $retryCount")
                         if (MAX_RETRIES == 0 || retryCount < MAX_RETRIES) {
                             retryRunnable?.let { handler.postDelayed(it, RETRY_INTERVAL_MS) }
                         }
@@ -108,6 +112,7 @@ class MainActivity : AppCompatActivity() {
                 }
             }
         }
+
         handler.postDelayed(retryRunnable!!, 2000)
     }
 
