@@ -126,9 +126,7 @@ class ToolViewerActivity : AppCompatActivity() {
                 barChart.visibility = View.VISIBLE
                 infoBar.visibility = View.VISIBLE
             }
-            "list_signals", "list_networks", "list_devices" -> {
-                listContainer.visibility = View.VISIBLE
-            }
+            "list_signals", "list_networks", "list_devices",
             "pick_signal", "pick_network", "pick_device" -> {
                 listContainer.visibility = View.VISIBLE
             }
@@ -359,18 +357,20 @@ class ToolViewerActivity : AppCompatActivity() {
         pollJob = lifecycleScope.launch {
             while (true) {
                 try {
-                    val json = Esp32Client.nrf24ScanData() ?: continue
-                    val obj = JSONObject(json)
-                    val barsArr = obj.getJSONArray("bars")
-                    val packets = obj.optLong("packets", 0)
-                    val values = mutableListOf<Int>()
-                    for (i in 0 until barsArr.length()) {
-                        values.add(barsArr.getInt(i) + 128)
-                    }
-                    runOnUiThread {
-                        barChart.setBars(values, 256)
-                        tvInfoText.text = "Canais: 2.4 GHz"
-                        tvInfoText2.text = "Pacotes: $packets"
+                    val json = Esp32Client.nrf24ScanData()
+                    if (json != null) {
+                        val obj = JSONObject(json)
+                        val barsArr = obj.getJSONArray("bars")
+                        val packets = obj.optLong("packets", 0)
+                        val values = mutableListOf<Int>()
+                        for (i in 0 until barsArr.length()) {
+                            values.add(barsArr.getInt(i) + 128)
+                        }
+                        runOnUiThread {
+                            barChart.setBars(values, 256)
+                            tvInfoText.text = "Canais: 2.4 GHz"
+                            tvInfoText2.text = "Pacotes: $packets"
+                        }
                     }
                 } catch (_: Exception) {}
                 delay(400)
@@ -382,19 +382,21 @@ class ToolViewerActivity : AppCompatActivity() {
         pollJob = lifecycleScope.launch {
             while (true) {
                 try {
-                    val data = Esp32Client.cc1101AnalyzerData() ?: continue
-                    val obj = JSONObject(data)
-                    val barsArr = obj.getJSONArray("bars")
-                    val freqsArr = obj.getJSONArray("freqs")
-                    val values = mutableListOf<Int>()
-                    for (i in 0 until barsArr.length()) {
-                        values.add(barsArr.getInt(i))
-                    }
-                    runOnUiThread {
-                        barChart.setBars(values, 40)
-                        tvInfoText.text = "Espectro Sub-GHz (64 pontos)"
-                        if (freqsArr.length() > 0) {
-                            tvInfoText2.text = "${freqsArr.getInt(0)}-${freqsArr.getInt(freqsArr.length()-1)} MHz"
+                    val data = Esp32Client.cc1101AnalyzerData()
+                    if (data != null) {
+                        val obj = JSONObject(data)
+                        val barsArr = obj.getJSONArray("bars")
+                        val freqsArr = obj.getJSONArray("freqs")
+                        val values = mutableListOf<Int>()
+                        for (i in 0 until barsArr.length()) {
+                            values.add(barsArr.getInt(i))
+                        }
+                        runOnUiThread {
+                            barChart.setBars(values, 40)
+                            tvInfoText.text = "Espectro Sub-GHz (64 pontos)"
+                            if (freqsArr.length() > 0) {
+                                tvInfoText2.text = "${freqsArr.getInt(0)}-${freqsArr.getInt(freqsArr.length()-1)} MHz"
+                            }
                         }
                     }
                 } catch (_: Exception) {}
@@ -420,44 +422,54 @@ class ToolViewerActivity : AppCompatActivity() {
 
     private suspend fun pollCaptureStatus() {
         pollJob = lifecycleScope.launch {
-            while (true) {
+            var finished = false
+            while (!finished) {
                 try {
                     val connected = Esp32Client.checkConnection()
                     if (connected) {
                         setStatusRunning(false)
-                        return@launch
+                        finished = true
                     }
                 } catch (_: Exception) {}
-                delay(1000)
+                if (!finished) delay(1000)
             }
         }
     }
 
     private suspend fun pollBruteForce() {
         pollJob = lifecycleScope.launch {
-            while (true) {
+            var finished = false
+            while (!finished) {
                 try {
-                    val json = Esp32Client.bfStatus() ?: continue
-                    val obj = JSONObject(json)
-                    val running = obj.optBoolean("running", false)
-                    val current = obj.optInt("current_index", 0)
-                    val total = obj.optInt("gate_total", 1)
-                    val percent = if (total > 0) (current * 100 / total) else 0
+                    val json = Esp32Client.bfStatus()
+                    if (json != null) {
+                        val obj = JSONObject(json)
+                        val running = obj.optBoolean("running", false)
+                        val current = obj.optInt("current_index", 0)
+                        val total = obj.optInt("gate_total", 1)
+                        val percent = if (total > 0) (current * 100 / total) else 0
 
-                    runOnUiThread {
                         if (!running) {
-                            tvProgressText.text = "Concluido"
-                            tvProgressPercent.text = "100%"
-                            progressBar.progress = 100
-                            setStatusRunning(false)
-                            return@launch
+                            runOnUiThread {
+                                tvProgressText.text = "Concluido"
+                                tvProgressPercent.text = "100%"
+                                progressBar.progress = 100
+                                setStatusRunning(false)
+                            }
+                            finished = true
+                        } else {
+                            val p = percent
+                            val c = current
+                            val t = total
+                            runOnUiThread {
+                                tvProgressText.text = "$c / $t"
+                                tvProgressPercent.text = "$p%"
+                                progressBar.progress = p
+                            }
                         }
-                        tvProgressText.text = "$current / $total"
-                        tvProgressPercent.text = "$percent%"
-                        progressBar.progress = percent
                     }
                 } catch (_: Exception) {}
-                delay(500)
+                if (!finished) delay(500)
             }
         }
     }
@@ -465,20 +477,27 @@ class ToolViewerActivity : AppCompatActivity() {
     private suspend fun pollBTDevices() {
         pollJob = lifecycleScope.launch {
             var attempts = 0
-            while (attempts < 30) {
+            var done = false
+            while (attempts < 30 && !done) {
                 try {
-                    val json = Esp32Client.btStatus() ?: run { attempts++; delay(1000); continue }
-                    val obj = JSONObject(json)
-                    val scanning = obj.optBoolean("scanning", false)
-                    if (!scanning) {
-                        loadBTDeviceListReadOnly()
-                        return@launch
+                    val json = Esp32Client.btStatus()
+                    if (json != null) {
+                        val obj = JSONObject(json)
+                        val scanning = obj.optBoolean("scanning", false)
+                        if (!scanning) {
+                            loadBTDeviceListReadOnly()
+                            done = true
+                        }
                     }
                 } catch (_: Exception) {}
-                attempts++
-                delay(1000)
+                if (!done) {
+                    attempts++
+                    delay(1000)
+                }
             }
-            loadBTDeviceListReadOnly()
+            if (!done) {
+                loadBTDeviceListReadOnly()
+            }
         }
     }
 
