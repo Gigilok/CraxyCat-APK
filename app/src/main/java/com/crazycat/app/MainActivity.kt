@@ -14,7 +14,6 @@ import androidx.lifecycle.lifecycleScope
 import com.crazycat.app.api.Esp32Client
 import kotlinx.coroutines.launch
 
-
 class MainActivity : AppCompatActivity() {
 
     private lateinit var tvStatus: TextView
@@ -25,8 +24,8 @@ class MainActivity : AppCompatActivity() {
     private var retryRunnable: Runnable? = null
     private var isConnected = false
     private var retryCount = 0
-    private val MAX_RETRIES = 0 // infinito - nunca para de tentar
-    private val RETRY_INTERVAL_MS = 5000L // tenta a cada 5 segundos
+    private val MAX_RETRIES = 0
+    private val RETRY_INTERVAL_MS = 5000L
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -40,20 +39,16 @@ class MainActivity : AppCompatActivity() {
         setupCard(R.id.cardNrf24, "NRF24")
         setupCard(R.id.cardBluetooth, "BLUETOOTH")
         setupCard(R.id.cardWifi, "WIFI")
-
-        // NAO checa conexao aqui - espera a tela estar visivel
-        // O onResume vai disparar a primeira checagem
+        setupCard(R.id.cardAtaques, "ATTACKS")
     }
 
     override fun onResume() {
         super.onResume()
-        // Sempre que a tela voltar ao foco, reinicia o retry
         startConnectionCheck()
     }
 
     override fun onPause() {
         super.onPause()
-        // Para o retry quando a tela nao esta visivel
         stopConnectionCheck()
     }
 
@@ -64,11 +59,8 @@ class MainActivity : AppCompatActivity() {
 
     private fun setupCard(cardId: Int, category: String) {
         val card = findViewById<LinearLayout>(cardId)
-
-        // Efeito de pressao nos cards
         card.setOnClickListener { view ->
             if (!isConnected) {
-                // feedback visual rapido se nao conectado
                 view.alpha = 0.5f
                 handler.postDelayed({ view.alpha = 1.0f }, 200)
                 return@setOnClickListener
@@ -77,8 +69,6 @@ class MainActivity : AppCompatActivity() {
             intent.putExtra("CATEGORY", category)
             startActivity(intent)
         }
-
-        // Efeito de toque (press)
         card.setOnTouchListener { view, event ->
             when (event.action) {
                 android.view.MotionEvent.ACTION_DOWN -> {
@@ -104,16 +94,13 @@ class MainActivity : AppCompatActivity() {
                 lifecycleScope.launch {
                     val connected = Esp32Client.checkConnection()
                     isConnected = connected
-
                     if (connected) {
                         updateStatusUI(true, "Crazy Cat Online")
                         retryCount = 0
-                        // Conectou - para o retry (onResume vai reiniciar se necessario)
                         stopConnectionCheck()
                     } else {
                         retryCount++
                         updateStatusUI(false, "ESP32 Offline · Tentativa $retryCount")
-                        // Agenda proxima tentativa
                         if (MAX_RETRIES == 0 || retryCount < MAX_RETRIES) {
                             retryRunnable?.let { handler.postDelayed(it, RETRY_INTERVAL_MS) }
                         }
@@ -121,8 +108,6 @@ class MainActivity : AppCompatActivity() {
                 }
             }
         }
-
-        // Primeira tentativa com 2s de atraso (dar tempo pro ESP32 iniciar)
         handler.postDelayed(retryRunnable!!, 2000)
     }
 
