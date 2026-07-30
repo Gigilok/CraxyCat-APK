@@ -50,12 +50,26 @@ object Esp32Client {
     }
 
     // === SUB-GHz (CC1101) ===
-    // Firmware tem: /api/cc1101/copy, /api/cc1101/replay, /api/cc1101/signals, /api/cc1101/raw, /api/cc1101/transmit_raw
-    // NAO tem: jammer/start, rolljam/start, analyzer/start
     suspend fun cc1101Copy(): Boolean = sendPost("/api/cc1101/copy")
     suspend fun cc1101Replay(id: Int): Boolean = sendPost("/api/cc1101/replay", mapOf("id" to id.toString()))
     suspend fun cc1101GetSignals(): String? = sendGet("/api/cc1101/signals")
     suspend fun cc1101GetRaw(id: Int): String? = sendGet("/api/cc1101/raw?id=$id")
+
+    // === SUB-GHz (CC1101) - RollJam ===
+    suspend fun cc1101RollJamStart(): Boolean = sendPost("/api/cc1101/rolljam/start")
+    suspend fun cc1101RollJamStop(): Boolean = sendPost("/api/cc1101/rolljam/stop")
+
+    // === SUB-GHz (CC1101) - Jammer ===
+    suspend fun cc1101JammerStart(): Boolean = sendPost("/api/cc1101/jammer/start")
+    suspend fun cc1101JammerStop(): Boolean = sendPost("/api/cc1101/jammer/stop")
+
+    // === SUB-GHz (CC1101) - Spectrum Analyzer ===
+    suspend fun cc1101AnalyzerStart(): Boolean = sendPost("/api/cc1101/analyzer/start")
+    suspend fun cc1101AnalyzerStop(): Boolean = sendPost("/api/cc1101/analyzer/stop")
+    suspend fun cc1101AnalyzerData(): String? = sendGet("/api/cc1101/analyzer/data")
+
+    // === SUB-GHz (CC1101) - Clear ===
+    suspend fun cc1101ClearSignals(): Boolean = sendPost("/api/cc1101/clear")
 
     // === NRF24 ===
     suspend fun nrf24JammerStart(): Boolean = sendPost("/api/nrf24/jammer/start")
@@ -81,7 +95,6 @@ object Esp32Client {
     suspend fun handshakeStatus(): String? = sendGet("/api/handshake")
 
     // === WIFI - DOWNLOAD HANDSHAKE PCAP ===
-    // Baixa o arquivo PCAP do ESP32 e salva localmente. Retorna o File ou null.
     suspend fun handshakeDownload(pcapFile: File): Boolean = withContext(Dispatchers.IO) {
         try {
             val request = Request.Builder().url("$BASE_URL/api/handshake/download").build()
