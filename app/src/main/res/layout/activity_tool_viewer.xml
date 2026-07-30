@@ -20,7 +20,7 @@
             android:layout_width="40dp"
             android:layout_height="40dp"
             android:gravity="center"
-            android:text="&#8592;"
+            android:text="←"
             android:textColor="#FFFFFF"
             android:textSize="24sp"/>
 
