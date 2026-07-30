@@ -34,11 +34,11 @@
                 android:gravity="center"
                 android:paddingTop="10dp"/>
 
-            <Button android:id="@+id/btnCC1101Copy" android:text="Copy (Capturar)" style="@style/CatButton"/>
-            <Button android:id="@+id/btnCC1101Replay" android:text="Replay (Repetir)" style="@style/CatButton"/>
-            <Button android:id="@+id/btnCC1101Jammer" android:text="Jammer Sub-GHz" style="@style/CatButton"/>
-            <Button android:id="@+id/btnCC1101RollJam" android:text="RollJam (Catch & Jam)" style="@style/CatButton"/>
-            <Button android:id="@+id/btnCC1101Analyzer" android:text="Analisador Espectro" style="@style/CatButton"/>
+            <Button android:id="@+id/btnCC1101Copy" android:text="Copy (Capturar)" android:backgroundTint="#333333" android:textColor="#00FF00" android:layout_width="match_parent" android:layout_height="wrap_content"/>
+            <Button android:id="@+id/btnCC1101Replay" android:text="Replay (Repetir)" android:backgroundTint="#333333" android:textColor="#00FF00" android:layout_width="match_parent" android:layout_height="wrap_content"/>
+            <Button android:id="@+id/btnCC1101Jammer" android:text="Jammer Sub-GHz" android:backgroundTint="#333333" android:textColor="#FF5722" android:layout_width="match_parent" android:layout_height="wrap_content"/>
+            <Button android:id="@+id/btnCC1101RollJam" android:text="RollJam (Catch e Jam)" android:backgroundTint="#333333" android:textColor="#FF5722" android:layout_width="match_parent" android:layout_height="wrap_content"/>
+            <Button android:id="@+id/btnCC1101Analyzer" android:text="Analisador Espectro" android:backgroundTint="#333333" android:textColor="#00FF00" android:layout_width="match_parent" android:layout_height="wrap_content"/>
 
             <TextView
                 android:layout_width="match_parent"
@@ -48,8 +48,8 @@
                 android:gravity="center"
                 android:paddingTop="15dp"/>
 
-            <Button android:id="@+id/btnNRF24Jammer" android:text="NRF24 Jammer" style="@style/CatButton"/>
-            <Button android:id="@+id/btnNRF24Scan" android:text="NRF24 Scanner" style="@style/CatButton"/>
+            <Button android:id="@+id/btnNRF24Jammer" android:text="NRF24 Jammer" android:backgroundTint="#333333" android:textColor="#FF5722" android:layout_width="match_parent" android:layout_height="wrap_content"/>
+            <Button android:id="@+id/btnNRF24Scan" android:text="NRF24 Scanner" android:backgroundTint="#333333" android:textColor="#00FF00" android:layout_width="match_parent" android:layout_height="wrap_content"/>
 
             <TextView
                 android:layout_width="match_parent"
@@ -59,8 +59,8 @@
                 android:gravity="center"
                 android:paddingTop="15dp"/>
 
-            <Button android:id="@+id/btnBLESpam" android:text="BLE Spam (Apple/Samsung)" style="@style/CatButton"/>
-            <Button android:id="@+id/btnBLEScan" android:text="BLE Scanner" style="@style/CatButton"/>
+            <Button android:id="@+id/btnBLESpam" android:text="BLE Spam (Apple/Samsung)" android:backgroundTint="#333333" android:textColor="#FF5722" android:layout_width="match_parent" android:layout_height="wrap_content"/>
+            <Button android:id="@+id/btnBLEScan" android:text="BLE Scanner" android:backgroundTint="#333333" android:textColor="#00FF00" android:layout_width="match_parent" android:layout_height="wrap_content"/>
 
             <TextView
                 android:layout_width="match_parent"
@@ -70,9 +70,9 @@
                 android:gravity="center"
                 android:paddingTop="15dp"/>
 
-            <Button android:id="@+id/btnDeauth" android:text="Deauth Attack" style="@style/CatButton"/>
-            <Button android:id="@+id/btnEvilTwin" android:text="Evil Twin (Captive Portal)" style="@style/CatButton"/>
-            <Button android:id="@+id/btnHandshake" android:text="Capturar Handshake" style="@style/CatButton"/>
+            <Button android:id="@+id/btnDeauth" android:text="Deauth Attack" android:backgroundTint="#333333" android:textColor="#FF5722" android:layout_width="match_parent" android:layout_height="wrap_content"/>
+            <Button android:id="@+id/btnEvilTwin" android:text="Evil Twin (Captive Portal)" android:backgroundTint="#333333" android:textColor="#FF5722" android:layout_width="match_parent" android:layout_height="wrap_content"/>
+            <Button android:id="@+id/btnHandshake" android:text="Capturar Handshake" android:backgroundTint="#333333" android:textColor="#00FF00" android:layout_width="match_parent" android:layout_height="wrap_content"/>
 
             <TextView
                 android:layout_width="match_parent"
@@ -82,9 +82,9 @@
                 android:gravity="center"
                 android:paddingTop="15dp"/>
 
-            <Button android:id="@+id/btnDroneJammer" android:text="Drone Jammer" style="@style/CatButton"/>
-            <Button android:id="@+id/btnCameraFreeze" android:text="Camera Freeze" style="@style/CatButton"/>
-            <Button android:id="@+id/btnBruteForce" android:text="Brute Force (Portão/Carro)" style="@style/CatButton"/>
+            <Button android:id="@+id/btnDroneJammer" android:text="Drone Jammer" android:backgroundTint="#333333" android:textColor="#FF5722" android:layout_width="match_parent" android:layout_height="wrap_content"/>
+            <Button android:id="@+id/btnCameraFreeze" android:text="Camera Freeze" android:backgroundTint="#333333" android:textColor="#FF5722" android:layout_width="match_parent" android:layout_height="wrap_content"/>
+            <Button android:id="@+id/btnBruteForce" android:text="Brute Force (Portao/Carro)" android:backgroundTint="#333333" android:textColor="#FF5722" android:layout_width="match_parent" android:layout_height="wrap_content"/>
 
         </LinearLayout>
     </ScrollView>
