@@ -4,6 +4,8 @@ import android.content.Intent
 import android.graphics.Color
 import android.graphics.drawable.GradientDrawable
 import android.os.Bundle
+import android.os.Handler
+import android.os.Looper
 import android.view.Gravity
 import android.view.View
 import android.widget.Button
@@ -33,6 +35,7 @@ class ToolViewerActivity : AppCompatActivity() {
         const val EXTRA_PARAM = "param"
     }
 
+    // UI
     private lateinit var tvTitle: TextView
     private lateinit var tvStatusIndicator: TextView
     private lateinit var infoBar: LinearLayout
@@ -62,7 +65,7 @@ class ToolViewerActivity : AppCompatActivity() {
     private var startTime: Long = 0
     private var timerJob: Job? = null
     private var pulseJob: Job? = null
-    private var isRunning = false
+    private var isRunning: Boolean = false
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -126,7 +129,9 @@ class ToolViewerActivity : AppCompatActivity() {
                 barChart.visibility = View.VISIBLE
                 infoBar.visibility = View.VISIBLE
             }
-            "list_signals", "list_networks", "list_devices",
+            "list_signals", "list_networks", "list_devices" -> {
+                listContainer.visibility = View.VISIBLE
+            }
             "pick_signal", "pick_network", "pick_device" -> {
                 listContainer.visibility = View.VISIBLE
             }
@@ -145,6 +150,24 @@ class ToolViewerActivity : AppCompatActivity() {
         }
     }
 
+    /** Show a specific panel at runtime (to switch from one to another) */
+    private fun switchToPanel(panel: String) {
+        runOnUiThread {
+            barChart.visibility = View.GONE
+            listContainer.visibility = View.GONE
+            statusPanel.visibility = View.GONE
+            progressPanel.visibility = View.GONE
+            keeloqPanel.visibility = View.GONE
+            crackPanel.visibility = View.GONE
+            pulseJob?.cancel()
+            when (panel) {
+                "graph" -> { barChart.visibility = View.VISIBLE; infoBar.visibility = View.VISIBLE }
+                "list"  -> { listContainer.visibility = View.VISIBLE }
+                "status"-> { statusPanel.visibility = View.VISIBLE }
+            }
+        }
+    }
+
     // ============================================================
     // TOOL STARTER
     // ============================================================
@@ -155,8 +178,13 @@ class ToolViewerActivity : AppCompatActivity() {
         startTimer()
 
         when (tool) {
+            // === NRF24 ===
             "nrf24_scanner" -> {
                 lifecycleScope.launch {
+                    // Initialize chart with zeros so bars don't show stale data
+                    barChart.setBars(List(16) { 0 }, 60)
+                    tvInfoText.text = "SCAN 2.4GHz"
+                    tvInfoText2.text = "F:0"
                     Esp32Client.nrf24ScannerStart()
                     pollNRF24Scanner()
                 }
@@ -170,6 +198,8 @@ class ToolViewerActivity : AppCompatActivity() {
                     pollGenericStatus()
                 }
             }
+
+            // === CC1101 ===
             "cc1101_copy" -> {
                 lifecycleScope.launch {
                     tvStatusTitle.text = "CAPTURANDO"
@@ -190,7 +220,10 @@ class ToolViewerActivity : AppCompatActivity() {
                     tvStatusTitle.text = "ROLLJAM"
                     tvStatusDetail.text = "Catch and Jam - 433 MHz"
                     startPulse(Color.parseColor("#FF5252"))
-                    Esp32Client.cc1101RollJamStart()
+                    val ok = Esp32Client.cc1101RollJamStart()
+                    if (!ok) {
+                        tvStatusDetail.text = "Erro ao iniciar RollJam\nEndpoint pode nao existir no firmware"
+                    }
                     pollGenericStatus()
                 }
             }
@@ -199,13 +232,27 @@ class ToolViewerActivity : AppCompatActivity() {
                     tvStatusTitle.text = "JAMMER SUB-GHz"
                     tvStatusDetail.text = "433.92 MHz - Bloqueando"
                     startPulse(Color.parseColor("#FF5252"))
-                    Esp32Client.cc1101JammerStart()
+                    val ok = Esp32Client.cc1101JammerStart()
+                    if (!ok) {
+                        tvStatusDetail.text = "Erro ao iniciar Jammer\nEndpoint pode nao existir no firmware"
+                    }
                     pollGenericStatus()
                 }
             }
             "cc1101_analyzer" -> {
                 lifecycleScope.launch {
-                    Esp32Client.cc1101AnalyzerStart()
+                    // Initialize chart with zeros
+                    barChart.setBars(List(64) { 0 }, 40)
+                    tvInfoText.text = "RF Analyzer"
+                    tvInfoText2.text = ""
+                    val ok = Esp32Client.cc1101AnalyzerStart()
+                    if (!ok) {
+                        tvInfoText.text = "Analyzer indisponivel"
+                        tvInfoText2.text = "Atualize o firmware"
+                        Toast.makeText(this@ToolViewerActivity,
+                            "Endpoint /api/cc1101/analyzer/data nao existe no firmware. Atualize o firmware.",
+                            Toast.LENGTH_LONG).show()
+                    }
                     pollCC1101Analyzer()
                 }
             }
@@ -216,19 +263,27 @@ class ToolViewerActivity : AppCompatActivity() {
                 lifecycleScope.launch {
                     tvStatusTitle.text = "LIMPAR SINAIS"
                     tvStatusDetail.text = "Apagando todos os sinais salvos..."
-                    Esp32Client.cc1101ClearSignals()
+                    val ok = Esp32Client.cc1101ClearSignals()
                     delay(500)
-                    tvStatusTitle.text = "LIMPO!"
-                    tvStatusDetail.text = "Todos os sinais foram apagados"
+                    tvStatusTitle.text = if (ok) "LIMPO!" else "ERRO"
+                    tvStatusDetail.text = if (ok) "Todos os sinais foram apagados"
+                        else "Falha ao apagar sinais"
                     setStatusRunning(false)
                 }
             }
+
+            // === BLUETOOTH ===
             "bt_scan" -> {
                 lifecycleScope.launch {
-                    Esp32Client.btScan()
+                    // Start scanning - show status panel with pulse
+                    switchToPanel("status")
                     tvStatusTitle.text = "ESCANEANDO BLE"
                     tvStatusDetail.text = "Aguardando 15 segundos..."
                     startPulse(Color.parseColor("#42A5F5"))
+                    val ok = Esp32Client.btScan()
+                    if (!ok) {
+                        tvStatusDetail.text = "Erro ao iniciar scan BLE"
+                    }
                     delay(3000)
                     pollBTDevices()
                 }
@@ -236,6 +291,8 @@ class ToolViewerActivity : AppCompatActivity() {
             "bt_jammer" -> {
                 lifecycleScope.launch { loadBTDeviceList() }
             }
+
+            // === WIFI ===
             "wifi_scan" -> {
                 lifecycleScope.launch {
                     Esp32Client.wifiScanNetworksPost()
@@ -252,6 +309,8 @@ class ToolViewerActivity : AppCompatActivity() {
             "crack" -> {
                 lifecycleScope.launch { runCrackFlow() }
             }
+
+            // === ATTACKS ===
             "drone_jammer" -> {
                 lifecycleScope.launch {
                     tvStatusTitle.text = "DRONE JAMMER"
@@ -336,33 +395,39 @@ class ToolViewerActivity : AppCompatActivity() {
 
     private fun startTimer() {
         timerJob = lifecycleScope.launch {
-            var done = false
-            while (!done) {
+            while (true) {
                 val elapsed = ((System.currentTimeMillis() - startTime) / 1000)
                 val min = String.format("%02d", elapsed / 60)
                 val sec = String.format("%02d", elapsed % 60)
                 runOnUiThread { tvStatusTimer.text = "$min:$sec" }
-                if (!done) delay(1000)
+                delay(1000)
             }
         }
     }
 
-    // FIX: Criar GradientDrawable programaticamente (XML tem ColorDrawable)
+    /**
+     * FIX: Create a new GradientDrawable programmatically instead of
+     * casting the existing ColorDrawable (which causes ClassCastException).
+     */
     private fun startPulse(color: Int) {
+        pulseJob?.cancel()
         pulseJob = lifecycleScope.launch {
             val gd = GradientDrawable()
-            gd.cornerRadius = 60f
+            gd.shape = GradientDrawable.OVAL
+            gd.setColor(Color.argb(100, Color.red(color), Color.green(color), Color.blue(color)))
             runOnUiThread { pulseCircle.background = gd }
-            var done = false
-            while (!done) {
+
+            while (true) {
                 for (alpha in 100..255 step 5) {
-                    if (done) break
-                    gd.setColor(Color.argb(alpha, Color.red(color), Color.green(color), Color.blue(color)))
+                    if (!isRunning) break
+                    val c = Color.argb(alpha, Color.red(color), Color.green(color), Color.blue(color))
+                    runOnUiThread { gd.setColor(c) }
                     delay(20)
                 }
                 for (alpha in 255 downTo 100 step 5) {
-                    if (done) break
-                    gd.setColor(Color.argb(alpha, Color.red(color), Color.green(color), Color.blue(color)))
+                    if (!isRunning) break
+                    val c = Color.argb(alpha, Color.red(color), Color.green(color), Color.blue(color))
+                    runOnUiThread { gd.setColor(c) }
                     delay(20)
                 }
             }
@@ -371,236 +436,265 @@ class ToolViewerActivity : AppCompatActivity() {
 
     // ============================================================
     // POLLING: NRF24 SCANNER (16 bars graph)
-    // Firmware envia: { "bars": [int8 x 16], "packets": uint32 }
-    // int8 (-128..127) => shift +128 => 0..255
+    // Firmware returns: { "bars": [-100, -100, -75, ...], "packets": 12345 }
+    // bars are int8 RSSI values: -100 = silence, -40 = strong
     // ============================================================
     private suspend fun pollNRF24Scanner() {
         pollJob = lifecycleScope.launch {
-            var done = false
-            while (!done) {
+            var errorCount = 0
+            while (true) {
+                if (!isRunning) break
                 try {
                     val json = Esp32Client.nrf24ScanData()
-                    if (json != null) {
-                        val obj = JSONObject(json)
-                        val barsArr = obj.getJSONArray("bars")
-                        val packets = obj.optLong("packets", 0)
-                        val values = mutableListOf<Int>()
-                        for (i in 0 until barsArr.length()) {
-                            values.add(barsArr.getInt(i) + 128)
+                    if (json == null) {
+                        errorCount++
+                        if (errorCount > 5) {
+                            runOnUiThread {
+                                tvInfoText.text = "Sem resposta do ESP32"
+                            }
+                            delay(2000)
+                            continue
                         }
-                        val p = packets
-                        val v = values.toList()
-                        runOnUiThread {
-                            barChart.setBars(v, 256)
-                            tvInfoText.text = "2.4 GHz - 16 canais NRF24"
-                            tvInfoText2.text = "Pacotes detectados: $p"
-                        }
+                        delay(400)
+                        continue
                     }
-                } catch (_: Exception) {}
-                if (!done) delay(400)
+                    errorCount = 0
+                    val obj = JSONObject(json)
+
+                    // Check for error response from firmware
+                    if (obj.has("status") && obj.optString("status") == "error") {
+                        runOnUiThread {
+                            tvInfoText.text = "Erro: ${obj.optString("message", "?"}"
+                        }
+                        delay(2000)
+                        continue
+                    }
+
+                    val barsArr = obj.getJSONArray("bars")
+                    val packets = obj.optLong("packets", 0)
+
+                    // Firmware: int8 RSSI from -100 (silence) to -40 (strong)
+                    // Convert to 0-60 range for display (matching firmware's map(value, 0, 40, 0, 30) scaled 2x)
+                    val values = mutableListOf<Int>()
+                    for (i in 0 until barsArr.length()) {
+                        val rssi = barsArr.getInt(i)  // -100 to -40
+                        val displayVal = rssi + 100  // shift: -100->0, -40->60
+                        values.add(displayVal.coerceIn(0, 60))
+                    }
+
+                    runOnUiThread {
+                        barChart.setBars(values, 60)
+                        tvInfoText.text = "SCAN 2.4GHz"
+                        tvInfoText2.text = "F:$packets"
+                    }
+                } catch (e: Exception) {
+                    // Silently skip bad frames
+                }
+                delay(400)
             }
         }
     }
 
     // ============================================================
     // POLLING: CC1101 ANALYZER (64 bars graph)
-    // Firmware envia: { "bars": [uint16 x 64], "freqs": [uint32 x 64 Hz], "running": bool }
+    // Firmware returns raw bar heights 0-40 (if endpoint existed)
     // ============================================================
     private suspend fun pollCC1101Analyzer() {
         pollJob = lifecycleScope.launch {
-            var done = false
-            while (!done) {
+            var errorCount = 0
+            while (true) {
+                if (!isRunning) break
                 try {
-                    val json = Esp32Client.cc1101AnalyzerData()
-                    if (json != null) {
-                        val obj = JSONObject(json)
-                        val barsArr = obj.getJSONArray("bars")
-                        val freqsArr = obj.getJSONArray("freqs")
-                        val isRunning = obj.optBoolean("running", false)
-                        if (!isRunning) {
-                            runOnUiThread { setStatusRunning(false) }
-                            done = true
-                        } else {
-                            val values = mutableListOf<Int>()
-                            for (i in 0 until barsArr.length()) {
-                                values.add(barsArr.getInt(i))
-                            }
-                            val maxVal = (values.maxOrNull() ?: 1).coerceAtLeast(1)
-                            val fMin = if (freqsArr.length() > 0) freqsArr.getLong(0) / 1000000.0 else 0.0
-                            val fMax = if (freqsArr.length() > 1) freqsArr.getLong(freqsArr.length() - 1) / 1000000.0 else 0.0
-                            val v = values.toList()
-                            val mv = maxVal
-                            val fmin = fMin
-                            val fmax = fMax
-                            runOnUiThread {
-                                barChart.setBars(v, mv)
-                                tvInfoText.text = "Espectro Sub-GHz (64 pontos)"
-                                tvInfoText2.text = String.format("%.1f - %.1f MHz", fmin, fmax)
+                    val data = Esp32Client.cc1101AnalyzerData()
+                    if (data == null) {
+                        errorCount++
+                        if (errorCount <= 3) {
+                            // First few failures - endpoint might not exist in firmware
+                            delay(1000)
+                            continue
+                        }
+                        // Show helpful message after repeated failures
+                        runOnUiThread {
+                            tvInfoText.text = "Endpoint nao disponivel"
+                            tvInfoText2.text = "Atualize o firmware"
+                        }
+                        delay(5000)
+                        continue
+                    }
+                    errorCount = 0
+                    val obj = JSONObject(data)
+
+                    if (obj.has("status") && obj.optString("status") == "error") {
+                        runOnUiThread {
+                            tvInfoText.text = "Erro: ${obj.optString("message", "?"}"
+                        }
+                        delay(3000)
+                        continue
+                    }
+
+                    val barsArr = obj.getJSONArray("bars")
+                    val values = mutableListOf<Int>()
+                    for (i in 0 until barsArr.length()) {
+                        values.add(barsArr.getInt(i).coerceIn(0, 40))
+                    }
+
+                    runOnUiThread {
+                        barChart.setBars(values, 40)
+                        tvInfoText.text = "Espectro Sub-GHz (64 pontos)"
+                        if (obj.has("freqs")) {
+                            val freqsArr = obj.getJSONArray("freqs")
+                            if (freqsArr.length() > 0) {
+                                tvInfoText2.text = "${freqsArr.getInt(0)}-${freqsArr.getInt(freqsArr.length()-1)} MHz"
                             }
                         }
                     }
-                } catch (_: Exception) {}
-                if (!done) delay(300)
+                } catch (e: Exception) {
+                    // Silently skip
+                }
+                delay(300)
             }
         }
     }
 
     // ============================================================
-    // POLLING: GENERIC STATUS (usa /api/status com dados reais)
-    // Firmware retorna flags reais de cada ataque ativo
+    // POLLING: GENERIC STATUS (keeps connection alive)
     // ============================================================
     private suspend fun pollGenericStatus() {
         pollJob = lifecycleScope.launch {
-            var done = false
-            while (!done) {
+            while (true) {
+                if (!isRunning) break
                 try {
-                    val json = Esp32Client.getStatus()
-                    if (json == null) {
-                        runOnUiThread { setStatusRunning(false) }
-                        done = true
-                    } else {
-                        val obj = JSONObject(json)
-                        val tool = intent.getStringExtra(EXTRA_TOOL) ?: ""
-                        val active = when (tool) {
-                            "nrf24_jammer" -> obj.optBoolean("nrf24_jammer", false)
-                            "cc1101_rolljam" -> obj.optBoolean("cc1101_rolljam", false)
-                            "cc1101_jammer" -> obj.optBoolean("cc1101_capturing", false)
-                            "drone_jammer" -> obj.optBoolean("drone_jammer", false)
-                            "camera_freeze" -> obj.optBoolean("camera_freeze", false)
-                            "bt_jammer" -> obj.optBoolean("bt_jammer", false)
-                            "deauth" -> obj.optBoolean("deauth_active", false)
-                            "eviltwin" -> obj.optBoolean("eviltwin_active", false)
-                            else -> true
-                        }
-                        if (!active) {
-                            runOnUiThread {
-                                setStatusRunning(false)
-                                tvStatusDetail.text = "Parado"
-                            }
-                            done = true
-                        }
+                    val connected = Esp32Client.checkConnection()
+                    if (!connected) {
+                        setStatusRunning(false)
+                        runOnUiThread { tvStatusDetail.text = "ESP32 desconectado!" }
+                        break
                     }
                 } catch (_: Exception) {}
-                if (!done) delay(2000)
+                delay(2000)
             }
         }
     }
 
     // ============================================================
-    // POLLING: CAPTURE STATUS (usa /api/status cc1101_capturing)
-    // Firmware: cc1101_capturing = true enquanto captura, cc1101_signals = count
+    // POLLING: CAPTURE STATUS (CC1101 copy)
+    // Polls /api/status to check cc1101_capturing flag
     // ============================================================
     private suspend fun pollCaptureStatus() {
         pollJob = lifecycleScope.launch {
-            var done = false
-            while (!done) {
+            var waited = 0
+            while (true) {
+                if (!isRunning) break
                 try {
-                    val json = Esp32Client.getStatus()
-                    if (json == null) {
-                        runOnUiThread { setStatusRunning(false) }
-                        done = true
-                    } else {
+                    val json = Esp32Client.checkStatusJson()
+                    if (json != null) {
                         val obj = JSONObject(json)
                         val capturing = obj.optBoolean("cc1101_capturing", false)
-                        val signals = obj.optInt("cc1101_signals", 0)
+                        val signalCount = obj.optInt("cc1101_signals", 0)
+                        runOnUiThread {
+                            tvStatusDetail.text = "Varrendo... Sinais: $signalCount"
+                        }
                         if (!capturing) {
-                            val s = signals
+                            // Capture finished
                             runOnUiThread {
-                                tvStatusTitle.text = if (s > 0) "SINAL CAPTURADO" else "CAPTURA CONCLUIDA"
-                                tvStatusDetail.text = if (s > 0) "$s sinal(is) salvo(s)" else "Nenhum sinal detectado"
-                                setStatusRunning(false)
+                                tvStatusTitle.text = "CAPTURADO!"
+                                tvStatusDetail.text = "Sinal capturado com sucesso"
                             }
-                            done = true
-                        } else {
-                            val s = signals
-                            runOnUiThread {
-                                tvStatusDetail.text = "Varrendo frequencias... ($s sinais)"
-                            }
+                            setStatusRunning(false)
+                            break
                         }
                     }
                 } catch (_: Exception) {}
-                if (!done) delay(1000)
+                delay(1000)
+                waited++
+                if (waited > 120) {
+                    // Timeout after 2 minutes
+                    runOnUiThread { tvStatusDetail.text = "Timeout - tente novamente" }
+                    setStatusRunning(false)
+                    break
+                }
             }
         }
     }
 
     // ============================================================
     // POLLING: BRUTE FORCE (progress)
-    // Firmware: { "running": bool, "current_index": uint16, "gate_total": uint16 }
     // ============================================================
     private suspend fun pollBruteForce() {
         pollJob = lifecycleScope.launch {
-            var done = false
-            while (!done) {
+            while (true) {
+                if (!isRunning) break
                 try {
-                    val json = Esp32Client.bfStatus()
-                    if (json != null) {
-                        val obj = JSONObject(json)
-                        val running = obj.optBoolean("running", false)
-                        val current = obj.optInt("current_index", 0)
-                        val total = obj.optInt("gate_total", 1)
-                        val percent = if (total > 0) (current * 100 / total) else 0
+                    val json = Esp32Client.bfStatus() ?: run { delay(500); continue }
+                    val obj = JSONObject(json)
+                    val running = obj.optBoolean("running", false)
+                    val current = obj.optInt("current_index", 0)
+                    val total = obj.optInt("gate_total", 1)
+                    val percent = if (total > 0) (current * 100 / total) else 0
 
-                        if (!running) {
-                            runOnUiThread {
-                                tvProgressText.text = "Concluido"
-                                tvProgressPercent.text = "100%"
-                                progressBar.progress = 100
-                                setStatusRunning(false)
-                            }
-                            done = true
+                    val finished = !running
+                    runOnUiThread {
+                        if (finished) {
+                            tvProgressText.text = "Concluido"
+                            tvProgressPercent.text = "100%"
+                            progressBar.progress = 100
                         } else {
-                            val p = percent
-                            val c = current
-                            val t = total
-                            runOnUiThread {
-                                tvProgressText.text = "$c / $t"
-                                tvProgressPercent.text = "$p%"
-                                progressBar.progress = p
-                            }
+                            tvProgressText.text = "$current / $total"
+                            tvProgressPercent.text = "$percent%"
+                            progressBar.progress = percent
                         }
                     }
+                    if (finished) {
+                        setStatusRunning(false)
+                        break
+                    }
                 } catch (_: Exception) {}
-                if (!done) delay(500)
+                delay(500)
             }
         }
     }
 
     // ============================================================
-    // POLLING: BT DEVICES (usa /api/attack/bt/status)
-    // Firmware: { "ble_available": bool, "scanning": bool, "device_count": int }
+    // POLLING: BT DEVICES
     // ============================================================
     private suspend fun pollBTDevices() {
         pollJob = lifecycleScope.launch {
             var attempts = 0
-            var done = false
-            while (attempts < 30 && !done) {
+            while (attempts < 20 && isRunning) {
                 try {
                     val json = Esp32Client.btStatus()
-                    if (json != null) {
-                        val obj = JSONObject(json)
-                        val scanning = obj.optBoolean("scanning", false)
-                        if (!scanning) {
-                            loadBTDeviceListReadOnly()
-                            done = true
-                        }
+                    if (json == null) {
+                        attempts++
+                        delay(1000)
+                        continue
+                    }
+                    val obj = JSONObject(json)
+                    val scanning = obj.optBoolean("scanning", false)
+                    if (!scanning) {
+                        loadBTDeviceListReadOnly()
+                        break
+                    }
+                    runOnUiThread {
+                        tvStatusDetail.text = "Escaneando... ${attempts}s"
                     }
                 } catch (_: Exception) {}
-                if (!done) {
-                    attempts++
-                    delay(1000)
-                }
+                attempts++
+                delay(1000)
             }
-            if (!done) {
-                loadBTDeviceListReadOnly()
-            }
+            // Timeout - load whatever devices were found
+            loadBTDeviceListReadOnly()
         }
     }
 
     // ============================================================
     // LIST BUILDERS
     // ============================================================
-    private fun createListItem(title: String, subtitle: String, accentColor: Int, clickable: Boolean = false, onClick: (() -> Unit)? = null): View {
+    /**
+     * FIX: Create LayoutParams explicitly instead of casting item.layoutParams
+     * (which is null when the view hasn't been added to a parent yet).
+     */
+    private fun createListItem(title: String, subtitle: String, accentColor: Int,
+                               clickable: Boolean = false, onClick: (() -> Unit)? = null): View {
         val item = LinearLayout(this).apply {
             orientation = LinearLayout.HORIZONTAL
             setBackgroundColor(Color.parseColor("#162447"))
@@ -612,37 +706,40 @@ class ToolViewerActivity : AppCompatActivity() {
             }
         }
 
+        // Accent bar
         val accent = View(this).apply {
             layoutParams = LinearLayout.LayoutParams(4, LinearLayout.LayoutParams.MATCH_PARENT)
             setBackgroundColor(accentColor)
         }
         item.addView(accent)
 
+        // Text column
         val textCol = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
             layoutParams = LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f)
             setPadding(16, 0, 0, 0)
         }
 
-        val tvTitle = TextView(this).apply {
+        val tvT = TextView(this).apply {
             text = title
             setTextColor(Color.WHITE)
             textSize = 15f
             setTypeface(null, android.graphics.Typeface.BOLD)
         }
-        textCol.addView(tvTitle)
+        textCol.addView(tvT)
 
         if (subtitle.isNotEmpty()) {
-            val tvSub = TextView(this).apply {
+            val tvS = TextView(this).apply {
                 text = subtitle
                 setTextColor(Color.parseColor("#888888"))
                 textSize = 12f
             }
-            textCol.addView(tvSub)
+            textCol.addView(tvS)
         }
 
         item.addView(textCol)
 
+        // Chevron
         if (clickable) {
             val tvChevron = TextView(this).apply {
                 text = "\u25B6"
@@ -653,8 +750,11 @@ class ToolViewerActivity : AppCompatActivity() {
             item.addView(tvChevron)
         }
 
-        // FIX: Usar LinearLayout.LayoutParams (tem bottomMargin herdado)
-        val params = item.layoutParams as LinearLayout.LayoutParams
+        // FIX: Set LayoutParams explicitly with bottom margin
+        val params = LinearLayout.LayoutParams(
+            LinearLayout.LayoutParams.MATCH_PARENT,
+            LinearLayout.LayoutParams.WRAP_CONTENT
+        )
         params.bottomMargin = 8
         item.layoutParams = params
 
@@ -667,7 +767,6 @@ class ToolViewerActivity : AppCompatActivity() {
 
     // ============================================================
     // LOAD: SIGNALS (read-only)
-    // Firmware: { "signals": [{ "id": int, "name": str, "frequency": uint32 Hz }] }
     // ============================================================
     private suspend fun loadSignalListReadOnly() {
         try {
@@ -686,12 +785,11 @@ class ToolViewerActivity : AppCompatActivity() {
             for (i in 0 until arr.length()) {
                 val sig = arr.getJSONObject(i)
                 val name = sig.optString("name", "Sinal $i")
-                val freq = sig.optLong("frequency", 0) / 1000000.0
+                val freq = sig.optLong("frequency", 0) / 1000000
                 val id = sig.optInt("id", i)
-                val f = String.format("%.2f", freq)
                 runOnUiThread {
                     listContent.addView(createListItem(
-                        name, "$f MHz  |  ID: $id", Color.parseColor("#00FF41")
+                        name, "${freq} MHz  |  ID: $id", Color.parseColor("#00FF41")
                     ))
                 }
             }
@@ -721,13 +819,12 @@ class ToolViewerActivity : AppCompatActivity() {
             for (i in 0 until arr.length()) {
                 val sig = arr.getJSONObject(i)
                 val name = sig.optString("name", "Sinal $i")
-                val freq = sig.optLong("frequency", 0) / 1000000.0
+                val freq = sig.optLong("frequency", 0) / 1000000
                 val id = sig.optInt("id", i)
                 val captureId = id
-                val f = String.format("%.2f", freq)
                 runOnUiThread {
                     listContent.addView(createListItem(
-                        name, "$f MHz  |  ID: $id", Color.parseColor("#00FF41"), true
+                        name, "${freq} MHz  |  ID: $id", Color.parseColor("#00FF41"), true
                     ) {
                         lifecycleScope.launch {
                             Toast.makeText(this@ToolViewerActivity, "Reproduzindo $name...", Toast.LENGTH_SHORT).show()
@@ -748,6 +845,7 @@ class ToolViewerActivity : AppCompatActivity() {
     // ============================================================
     private suspend fun loadSignalListForKeeloq() {
         try {
+            // Show list initially with signal picker
             keeloqPanel.visibility = View.GONE
             listContainer.visibility = View.VISIBLE
 
@@ -756,6 +854,7 @@ class ToolViewerActivity : AppCompatActivity() {
             val arr = obj.getJSONArray("signals")
             clearList()
 
+            // Add header
             runOnUiThread {
                 val header = TextView(this).apply {
                     text = "Selecione um sinal para Rolling Code:"
@@ -779,13 +878,12 @@ class ToolViewerActivity : AppCompatActivity() {
             for (i in 0 until arr.length()) {
                 val sig = arr.getJSONObject(i)
                 val name = sig.optString("name", "Sinal $i")
-                val freq = sig.optLong("frequency", 0) / 1000000.0
+                val freq = sig.optLong("frequency", 0) / 1000000
                 val id = sig.optInt("id", i)
                 val captureId = id
-                val f = String.format("%.2f", freq)
                 runOnUiThread {
                     listContent.addView(createListItem(
-                        name, "$f MHz  |  ID: $id", Color.parseColor("#00FF41"), true
+                        name, "${freq} MHz  |  ID: $id", Color.parseColor("#00FF41"), true
                     ) {
                         lifecycleScope.launch { processKeeloq(captureId) }
                     })
@@ -797,12 +895,9 @@ class ToolViewerActivity : AppCompatActivity() {
         }
     }
 
-    // ============================================================
-    // PROCESS KEELOQ
-    // Firmware: { "frequency": uint32, "length": uint8, "timings": [uint16] }
-    // ============================================================
     private suspend fun processKeeloq(signalId: Int) {
         try {
+            // Switch to keeloq panel
             runOnUiThread {
                 listContainer.visibility = View.GONE
                 keeloqPanel.visibility = View.VISIBLE
@@ -856,7 +951,6 @@ class ToolViewerActivity : AppCompatActivity() {
 
     // ============================================================
     // LOAD: NETWORKS (read-only)
-    // Firmware: { "networks": [{ "id", "ssid", "channel", "rssi", "encrypted", "bssid" }] }
     // ============================================================
     private suspend fun loadNetworkList() {
         try {
@@ -881,6 +975,7 @@ class ToolViewerActivity : AppCompatActivity() {
                 val bssid = net.optString("bssid", "")
                 val id = net.optInt("id", i)
                 val lockIcon = if (encrypted) " [WPA]" else " [OPEN]"
+                val captureId = id
                 runOnUiThread {
                     listContent.addView(createListItem(
                         ssid, "CH:$channel  RSSI:$rssi$lockIcon  $bssid",
@@ -927,13 +1022,11 @@ class ToolViewerActivity : AppCompatActivity() {
                         ssid, "CH:$channel  RSSI:$rssi", Color.parseColor("#FF5252"), true
                     ) {
                         lifecycleScope.launch {
-                            listContainer.visibility = View.GONE
-                            statusPanel.visibility = View.VISIBLE
+                            switchToPanel("status")
                             tvStatusTitle.text = "DEAUTH"
                             tvStatusDetail.text = "Desautenticando $ssid"
                             startPulse(Color.parseColor("#FF5252"))
                             Esp32Client.deauthStart(captureId)
-                            pollGenericStatus()
                         }
                     })
                 }
@@ -977,13 +1070,11 @@ class ToolViewerActivity : AppCompatActivity() {
                         ssid, "CH:$channel  RSSI:$rssi", Color.parseColor("#FF9100"), true
                     ) {
                         lifecycleScope.launch {
-                            listContainer.visibility = View.GONE
-                            statusPanel.visibility = View.VISIBLE
+                            switchToPanel("status")
                             tvStatusTitle.text = "EVIL TWIN"
                             tvStatusDetail.text = "Clonando $ssid"
                             startPulse(Color.parseColor("#FF9100"))
                             Esp32Client.eviltwinStart(captureId)
-                            pollGenericStatus()
                         }
                     })
                 }
@@ -996,7 +1087,6 @@ class ToolViewerActivity : AppCompatActivity() {
 
     // ============================================================
     // LOAD: BT DEVICES (pick for jammer)
-    // Firmware: { "devices": [{ "id": int, "name": str, "rssi": int }] }
     // ============================================================
     private suspend fun loadBTDeviceList() {
         try {
@@ -1036,13 +1126,11 @@ class ToolViewerActivity : AppCompatActivity() {
                         name, "RSSI: $rssi", Color.parseColor("#42A5F5"), true
                     ) {
                         lifecycleScope.launch {
-                            listContainer.visibility = View.GONE
-                            statusPanel.visibility = View.VISIBLE
+                            switchToPanel("status")
                             tvStatusTitle.text = "BLE JAMMER"
                             tvStatusDetail.text = "Jamming $name"
                             startPulse(Color.parseColor("#42A5F5"))
                             Esp32Client.btJammerStart(captureId)
-                            pollGenericStatus()
                         }
                     })
                 }
@@ -1054,7 +1142,7 @@ class ToolViewerActivity : AppCompatActivity() {
     }
 
     // ============================================================
-    // LOAD: BT DEVICES (read-only after scan)
+    // LOAD: BT DEVICES (read-only, after scan)
     // ============================================================
     private suspend fun loadBTDeviceListReadOnly() {
         try {
@@ -1062,11 +1150,7 @@ class ToolViewerActivity : AppCompatActivity() {
             val obj = JSONObject(json)
             val arr = obj.getJSONArray("devices")
 
-            runOnUiThread {
-                listContainer.visibility = View.VISIBLE
-                statusPanel.visibility = View.GONE
-                pulseJob?.cancel()
-            }
+            switchToPanel("list")
             clearList()
 
             if (arr.length() == 0) {
@@ -1096,7 +1180,6 @@ class ToolViewerActivity : AppCompatActivity() {
 
     // ============================================================
     // CRACK FLOW (Aircrack)
-    // Firmware handshake: { "capturing": bool, "complete": bool, "frames": int }
     // ============================================================
     private suspend fun runCrackFlow() {
         try {
