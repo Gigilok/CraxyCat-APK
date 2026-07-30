@@ -2,10 +2,9 @@ package com.crazycat.app.api
 
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
-import okhttp3.MediaType.Companion.toMediaType
+import okhttp3.FormBody
 import okhttp3.OkHttpClient
 import okhttp3.Request
-import okhttp3.RequestBody.Companion.toRequestBody
 import java.util.concurrent.TimeUnit
 
 object Esp32Client {
@@ -16,29 +15,19 @@ object Esp32Client {
         .readTimeout(8, TimeUnit.SECONDS)
         .build()
 
-    private suspend fun post(endpoint: String): Boolean = withContext(Dispatchers.IO) {
+    private suspend fun sendPost(endpoint: String, params: Map<String, String> = emptyMap()): Boolean = withContext(Dispatchers.IO) {
         try {
-            val body = "".toRequestBody("text/plain".toMediaType())
+            val builder = FormBody.Builder()
+            params.forEach { (k, v) -> builder.add(k, v) }
             val request = Request.Builder()
                 .url("$BASE_URL$endpoint")
-                .post(body)
+                .post(builder.build())
                 .build()
             client.newCall(request).execute().use { it.isSuccessful }
         } catch (e: Exception) { false }
     }
 
-    private suspend fun postWithParams(endpoint: String, params: String): Boolean = withContext(Dispatchers.IO) {
-        try {
-            val body = "".toRequestBody("text/plain".toMediaType())
-            val request = Request.Builder()
-                .url("$BASE_URL$endpoint?$params")
-                .post(body)
-                .build()
-            client.newCall(request).execute().use { it.isSuccessful }
-        } catch (e: Exception) { false }
-    }
-
-    private suspend fun get(endpoint: String): String? = withContext(Dispatchers.IO) {
+    private suspend fun sendGet(endpoint: String): String? = withContext(Dispatchers.IO) {
         try {
             val request = Request.Builder().url("$BASE_URL$endpoint").build()
             client.newCall(request).execute().use { response ->
@@ -47,6 +36,7 @@ object Esp32Client {
         } catch (e: Exception) { null }
     }
 
+    // === CONEXAO ===
     suspend fun checkConnection(): Boolean = withContext(Dispatchers.IO) {
         try {
             val request = Request.Builder().url("$BASE_URL/api/status").build()
@@ -54,47 +44,45 @@ object Esp32Client {
         } catch (e: Exception) { false }
     }
 
-    // === SUB-GHz (CC1101) - endpoints que EXISTEM no firmware ===
-    suspend fun startCC1101Copy(): Boolean = post("/api/cc1101/copy")
-    suspend fun getCC1101Signals(): String? = get("/api/cc1101/signals")
-    suspend fun startCC1101Replay(signalId: Int): Boolean = postWithParams("/api/cc1101/replay", "id=$signalId")
+    // === SUB-GHz (CC1101) ===
+    // Firmware tem: /api/cc1101/copy, /api/cc1101/replay, /api/cc1101/signals, /api/cc1101/raw, /api/cc1101/transmit_raw
+    // NAO tem: jammer/start, rolljam/start, analyzer/start
+    suspend fun cc1101Copy(): Boolean = sendPost("/api/cc1101/copy")
+    suspend fun cc1101Replay(id: Int): Boolean = sendPost("/api/cc1101/replay", mapOf("id" to id.toString()))
+    suspend fun cc1101GetSignals(): String? = sendGet("/api/cc1101/signals")
+    suspend fun cc1101GetRaw(id: Int): String? = sendGet("/api/cc1101/raw?id=$id")
 
     // === NRF24 ===
-    suspend fun startNRF24Jammer(): Boolean = post("/api/nrf24/jammer/start")
-    suspend fun stopNRF24Jammer(): Boolean = post("/api/nrf24/jammer/stop")
-    suspend fun startNRF24Scan(): Boolean = post("/api/nrf24/scanner/start")
-    suspend fun stopNRF24Scan(): Boolean = post("/api/nrf24/scanner/stop")
-    suspend fun getNRF24ScanData(): String? = get("/api/nrf24/scan")
+    suspend fun nrf24JammerStart(): Boolean = sendPost("/api/nrf24/jammer/start")
+    suspend fun nrf24JammerStop(): Boolean = sendPost("/api/nrf24/jammer/stop")
+    suspend fun nrf24ScannerStart(): Boolean = sendPost("/api/nrf24/scanner/start")
+    suspend fun nrf24ScannerStop(): Boolean = sendPost("/api/nrf24/scanner/stop")
+    suspend fun nrf24ScanData(): String? = sendGet("/api/nrf24/scan")
 
-    // === BLUETOOTH (via /api/attack/bt/) ===
-    suspend fun startBTScan(): Boolean = post("/api/attack/bt/scan")
-    suspend fun getBTDevices(): String? = get("/api/attack/bt/devices")
-    suspend fun getBTScanStatus(): String? = get("/api/attack/bt/status")
-    suspend fun startBTJammer(): Boolean = post("/api/attack/bt/jammer/start")
-    suspend fun stopBTJammer(): Boolean = post("/api/attack/bt/jammer/stop")
+    // === BLUETOOTH ===
+    suspend fun btScan(): Boolean = sendPost("/api/attack/bt/scan")
+    suspend fun btDevices(): String? = sendGet("/api/attack/bt/devices")
+    suspend fun btJammerStart(id: Int): Boolean = sendPost("/api/attack/bt/jammer/start", mapOf("id" to id.toString()))
+    suspend fun btJammerStop(): Boolean = sendPost("/api/attack/bt/jammer/stop")
+    suspend fun btStatus(): String? = sendGet("/api/attack/bt/status")
 
     // === WIFI ===
-    suspend fun startDeauth(netId: Int): Boolean = postWithParams("/api/deauth/start", "id=$netId")
-    suspend fun stopDeauth(): Boolean = post("/api/deauth/stop")
-    suspend fun startEvilTwin(): Boolean = post("/api/eviltwin/start")
-    suspend fun stopEvilTwin(): Boolean = post("/api/eviltwin/stop")
-    suspend fun getNetworks(): String? = get("/api/networks")
-    suspend fun scanNetworks(): Boolean = post("/api/networks/scan")
-    suspend fun getHandshakeStatus(): String? = get("/api/handshake")
+    suspend fun wifiScanNetworks(): String? = sendGet("/api/networks")
+    suspend fun wifiScanNetworksPost(): Boolean = sendPost("/api/networks/scan")
+    suspend fun deauthStart(id: Int): Boolean = sendPost("/api/deauth/start", mapOf("id" to id.toString()))
+    suspend fun deauthStop(): Boolean = sendPost("/api/deauth/stop")
+    suspend fun eviltwinStart(id: Int): Boolean = sendPost("/api/eviltwin/start", mapOf("id" to id.toString()))
+    suspend fun eviltwinStop(): Boolean = sendPost("/api/eviltwin/stop")
+    suspend fun handshakeStatus(): String? = sendGet("/api/handshake")
 
-    // === ATAQUES ===
-    // Drone
-    suspend fun startDroneJammer(): Boolean = post("/api/attack/drone/jammer/start")
-    suspend fun stopDroneJammer(): Boolean = post("/api/attack/drone/jammer/stop")
-
-    // Camera
-    suspend fun startCameraFreeze(): Boolean = post("/api/attack/camera/freeze/start")
-    suspend fun stopCameraFreeze(): Boolean = post("/api/attack/camera/freeze/stop")
-
-    // BruteForce
-    suspend fun startBFGate(): Boolean = post("/api/attack/bf/gate/start")
-    suspend fun stopBFGate(): Boolean = post("/api/attack/bf/gate/stop")
-    suspend fun startBFCar(): Boolean = post("/api/attack/bf/car/start")
-    suspend fun stopBFCar(): Boolean = post("/api/attack/bf/car/stop")
-    suspend fun getBFStatus(): String? = get("/api/attack/bf/status")
+    // === ATTACKS ===
+    suspend fun droneJammerStart(): Boolean = sendPost("/api/attack/drone/jammer/start")
+    suspend fun droneJammerStop(): Boolean = sendPost("/api/attack/drone/jammer/stop")
+    suspend fun cameraFreezeStart(): Boolean = sendPost("/api/attack/camera/freeze/start")
+    suspend fun cameraFreezeStop(): Boolean = sendPost("/api/attack/camera/freeze/stop")
+    suspend fun bfGateStart(): Boolean = sendPost("/api/attack/bf/gate/start")
+    suspend fun bfGateStop(): Boolean = sendPost("/api/attack/bf/gate/stop")
+    suspend fun bfCarStart(brand: Int): Boolean = sendPost("/api/attack/bf/car/start", mapOf("brand" to brand.toString()))
+    suspend fun bfCarStop(): Boolean = sendPost("/api/attack/bf/car/stop")
+    suspend fun bfStatus(): String? = sendGet("/api/attack/bf/status")
 }
