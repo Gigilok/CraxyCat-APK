@@ -1,19 +1,13 @@
 package com.crazycat.app
 
-import android.Manifest
-import android.content.pm.PackageManager
 import android.os.Bundle
 import android.widget.Button
 import android.widget.TextView
 import android.widget.Toast
 import androidx.appcompat.app.AppCompatActivity
-import androidx.core.app.ActivityCompat
 import androidx.lifecycle.lifecycleScope
 import com.crazycat.app.api.Esp32Client
-import com.crazycat.app.tools.AircrackRunner
-import com.crazycat.app.tools.SubGhzProcessor
 import kotlinx.coroutines.launch
-import java.io.File
 
 class MainActivity : AppCompatActivity() {
 
@@ -24,67 +18,67 @@ class MainActivity : AppCompatActivity() {
         setContentView(R.layout.activity_main)
 
         tvStatus = findViewById(R.id.tvStatus)
-        requestPermissions()
 
-        // Exemplo: Botão de Clone Rolling Code
-        findViewById<Button>(R.id.btnCloneRolling).setOnClickListener {
-            cloneRollingCode()
-        }
+        // Verifica conexão com o ESP32 ao abrir o app
+        checkConnection()
 
-        // Exemplo: Botão de Quebrar WiFi
-        findViewById<Button>(R.id.btnCrackWifi).setOnClickListener {
-            crackWifiHandshake()
-        }
+        // Configura todos os botões
+        setupButtons()
     }
 
-    private fun cloneRollingCode() {
+    private fun checkConnection() {
+        tvStatus.text = "Crazy Cat v3.1\nConectando ao ESP32..."
         lifecycleScope.launch {
-            tvStatus.text = "Capturando sinal do ESP32..."
-            val timings = Esp32Client.getCapturedSignal()
-            
-            if (timings != null) {
-                tvStatus.text = "Processando Keeloq..."
-                val result = SubGhzProcessor.processRollingCode(timings)
-                
-                if (result != null) {
-                    val (protocol, newTimings) = result
-                    tvStatus.text = "Enviando novo código válido para o ESP32..."
-                    val success = Esp32Client.transmitSignal(protocol.frequency, newTimings)
-                    
-                    tvStatus.text = if (success) "Sinal Clonado Transmitido!" else "Erro ao transmitir"
+            val connected = Esp32Client.checkConnection()
+            runOnUiThread {
+                if (connected) {
+                    tvStatus.text = "Crazy Cat v3.1\nESP32 Conectado! IP: 192.168.4.1"
+                    tvStatus.setTextColor(getColor(android.R.color.holo_green_light))
                 } else {
-                    tvStatus.text = "Protocolo não identificado"
+                    tvStatus.text = "Crazy Cat v3.1\nESP32 Offline!"
+                    tvStatus.setTextColor(getColor(android.R.color.holo_red_light))
                 }
-            } else {
-                tvStatus.text = "Erro de conexão com o ESP32"
             }
         }
     }
 
-    private fun crackWifiHandshake() {
-        lifecycleScope.launch {
-            tvStatus.text = "Baixando PCAP do ESP32..."
-            val pcapData = Esp32Client.downloadPcap()
-            
-            if (pcapData != null) {
-                val pcapFile = File(cacheDir, "handshake.pcap")
-                pcapFile.writeBytes(pcapData)
-                
-                tvStatus.text = "Executando Aircrack-ng..."
-                AircrackRunner.crackHandshake(this@MainActivity, pcapFile) { password ->
+    private fun setupButtons() {
+        // Função auxiliar para não repetir código
+        fun setupButton(id: Int, action: suspend () -> Boolean) {
+            findViewById<Button>(id).setOnClickListener {
+                lifecycleScope.launch {
+                    val success = action()
                     runOnUiThread {
-                        tvStatus.text = if (password != null) "Senha Encontrada: $password" else "Senha não encontrada na Wordlist"
+                        if (success) Toast.makeText(this@MainActivity, "Comando Enviado!", Toast.LENGTH_SHORT).show()
+                        else Toast.makeText(this@MainActivity, "Falha! ESP32 offline.", Toast.LENGTH_SHORT).show()
                     }
                 }
-            } else {
-                tvStatus.text = "Falha ao baixar Handshake"
             }
         }
-    }
 
-    private fun requestPermissions() {
-        if (ActivityCompat.checkSelfPermission(this, Manifest.permission.ACCESS_FINE_LOCATION) != PackageManager.PERMISSION_GRANTED) {
-            ActivityCompat.requestPermissions(this, arrayOf(Manifest.permission.ACCESS_FINE_LOCATION, Manifest.permission.NEARBY_WIFI_DEVICES), 1)
-        }
+        // CC1101
+        setupButton(R.id.btnCC1101Copy, Esp32Client::startCC1101Copy)
+        setupButton(R.id.btnCC1101Replay, Esp32Client::startCC1101Replay)
+        setupButton(R.id.btnCC1101Jammer, Esp32Client::startCC1101Jammer)
+        setupButton(R.id.btnCC1101RollJam, Esp32Client::startCC1101RollJam)
+        setupButton(R.id.btnCC1101Analyzer, Esp32Client::startCC1101Analyzer)
+
+        // NRF24
+        setupButton(R.id.btnNRF24Jammer, Esp32Client::startNRF24Jammer)
+        setupButton(R.id.btnNRF24Scan, Esp32Client::startNRF24Scan)
+
+        // BLE
+        setupButton(R.id.btnBLESpam, Esp32Client::startBLESpam)
+        setupButton(R.id.btnBLEScan, Esp32Client::startBLEScan)
+
+        // WiFi
+        setupButton(R.id.btnDeauth, Esp32Client::startDeauth)
+        setupButton(R.id.btnEvilTwin, Esp32Client::startEvilTwin)
+        setupButton(R.id.btnHandshake, Esp32Client::startHandshake)
+
+        // Outros
+        setupButton(R.id.btnDroneJammer, Esp32Client::startDroneJammer)
+        setupButton(R.id.btnCameraFreeze, Esp32Client::startCameraFreeze)
+        setupButton(R.id.btnBruteForce, Esp32Client::startBruteForceGate)
     }
 }
