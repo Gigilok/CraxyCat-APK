@@ -1,5 +1,6 @@
 package com.crazycat.app
 
+import android.net.wifi.WifiManager
 import android.os.Bundle
 import android.widget.Button
 import android.widget.TextView
@@ -19,23 +20,40 @@ class MainActivity : AppCompatActivity() {
 
         tvStatus = findViewById(R.id.tvStatus)
 
-        // Verifica conexão com o ESP32 ao abrir o app
-        checkConnection()
-
-        // Configura todos os botões
+        // Configura os botões
         setupButtons()
+
+        // Verifica conexão ao abrir
+        checkConnection()
     }
 
     private fun checkConnection() {
-        tvStatus.text = "Crazy Cat v3.1\nConectando ao ESP32..."
+        tvStatus.text = "🔄 Verificando WiFi..."
+        tvStatus.setTextColor(getColor(android.R.color.holo_orange_light))
+
         lifecycleScope.launch {
+            // Verifica se está conectado no WiFi do ESP32
+            val wifiManager = applicationContext.getSystemService(WIFI_SERVICE) as WifiManager
+            val currentSSID = wifiManager.connectionInfo?.ssid?.replace("\"", "")
+            
+            val isOnCrazyCatWifi = currentSSID?.contains("TP_Link") == true || currentSSID?.contains("CrazyCat") == true
+
+            if (!isOnCrazyCatWifi) {
+                runOnUiThread {
+                    tvStatus.text = "⚠️ CONECTE-SE AO WIFI 'TP_Link' DO ESP32!"
+                    tvStatus.setTextColor(getColor(android.R.color.holo_red_light))
+                }
+                return@launch
+            }
+
+            // Tenta falar com o ESP32
             val connected = Esp32Client.checkConnection()
             runOnUiThread {
                 if (connected) {
-                    tvStatus.text = "Crazy Cat v3.1\nESP32 Conectado! IP: 192.168.4.1"
+                    tvStatus.text = "✅ Crazy Cat Online | IP: 192.168.4.1"
                     tvStatus.setTextColor(getColor(android.R.color.holo_green_light))
                 } else {
-                    tvStatus.text = "Crazy Cat v3.1\nESP32 Offline!"
+                    tvStatus.text = "❌ ESP32 Offline (IP não responde)"
                     tvStatus.setTextColor(getColor(android.R.color.holo_red_light))
                 }
             }
@@ -43,14 +61,13 @@ class MainActivity : AppCompatActivity() {
     }
 
     private fun setupButtons() {
-        // Função auxiliar para não repetir código
         fun setupButton(id: Int, action: suspend () -> Boolean) {
             findViewById<Button>(id).setOnClickListener {
                 lifecycleScope.launch {
                     val success = action()
                     runOnUiThread {
-                        if (success) Toast.makeText(this@MainActivity, "Comando Enviado!", Toast.LENGTH_SHORT).show()
-                        else Toast.makeText(this@MainActivity, "Falha! ESP32 offline.", Toast.LENGTH_SHORT).show()
+                        if (success) Toast.makeText(this@MainActivity, "✅ Comando Enviado!", Toast.LENGTH_SHORT).show()
+                        else Toast.makeText(this@MainActivity, "❌ Falha! ESP32 offline.", Toast.LENGTH_SHORT).show()
                     }
                 }
             }
