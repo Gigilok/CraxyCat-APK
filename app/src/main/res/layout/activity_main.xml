@@ -1,8 +1,9 @@
 <?xml version="1.0" encoding="utf-8"?>
-<RelativeLayout xmlns:android="http://schemas.android.com/apk/res/android"
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
     android:background="#0A0A0A"
+    android:orientation="vertical"
     android:padding="16dp">
 
     <!-- Header -->
@@ -10,10 +11,9 @@
         android:id="@+id/headerLayout"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:layout_alignParentTop="true"
+        android:gravity="center_vertical"
         android:orientation="horizontal"
-    android:gravity="center_vertical"
-    android:layout_marginBottom="8dp">
+        android:layout_marginBottom="8dp">
 
         <TextView
             android:id="@+id/tvTitle"
@@ -40,7 +40,6 @@
         android:id="@+id/statusCard"
         android:layout_width="match_parent"
         android:layout_height="48dp"
-        android:layout_below="@id/headerLayout"
         android:background="#1A1A2E"
         android:gravity="center"
         android:orientation="horizontal"
@@ -64,24 +63,21 @@
             android:textSize="14sp"/>
     </LinearLayout>
 
-    <!-- Grid de Cards 2x2 -->
-    <GridLayout
-        android:id="@+id/gridCards"
+    <!-- Grid 2x2 - Linha 1 -->
+    <LinearLayout
         android:layout_width="match_parent"
-        android:layout_height="wrap_content"
-        android:layout_below="@id/statusCard"
-        android:layout_centerVertical="true"
-        android:columnCount="2"
-        android:rowCount="2"
-        android:useDefaultMargins="true">
+        android:layout_height="0dp"
+        android:layout_weight="1"
+        android:orientation="horizontal"
+        android:layout_marginBottom="8dp">
 
         <!-- Card 1: SUB-GHz -->
         <LinearLayout
             android:id="@+id/cardSubGhz"
             android:layout_width="0dp"
-            android:layout_height="0dp"
-            android:layout_columnWeight="1"
-            android:layout_rowWeight="1"
+            android:layout_height="match_parent"
+            android:layout_weight="1"
+            android:layout_marginEnd="6dp"
             android:background="#162447"
             android:gravity="center"
             android:orientation="vertical"
@@ -94,9 +90,9 @@
                 android:layout_height="48dp"
                 android:background="#1B5E20"
                 android:gravity="center"
-                android:text="⌅"
+                android:text="SG"
                 android:textColor="#00FF41"
-                android:textSize="28sp"
+                android:textSize="22sp"
                 android:textStyle="bold"/>
 
             <TextView
@@ -105,9 +101,8 @@
                 android:layout_marginTop="10dp"
                 android:text="SUB-GHz"
                 android:textColor="#00FF41"
-                android:textSize="13sp"
-                android:textStyle="bold"
-                android:letterSpacing="0.1"/>
+                android:textSize="14sp"
+                android:textStyle="bold"/>
 
             <TextView
                 android:layout_width="wrap_content"
@@ -121,9 +116,9 @@
         <LinearLayout
             android:id="@+id/cardNrf24"
             android:layout_width="0dp"
-            android:layout_height="0dp"
-            android:layout_columnWeight="1"
-            android:layout_rowWeight="1"
+            android:layout_height="match_parent"
+            android:layout_weight="1"
+            android:layout_marginStart="6dp"
             android:background="#1F1A2E"
             android:gravity="center"
             android:orientation="vertical"
@@ -136,9 +131,9 @@
                 android:layout_height="48dp"
                 android:background="#E65100"
                 android:gravity="center"
-                android:text="◎"
+                android:text="RF"
                 android:textColor="#FF9100"
-                android:textSize="28sp"
+                android:textSize="22sp"
                 android:textStyle="bold"/>
 
             <TextView
@@ -147,9 +142,8 @@
                 android:layout_marginTop="10dp"
                 android:text="2.4 GHz"
                 android:textColor="#FF9100"
-                android:textSize="13sp"
-                android:textStyle="bold"
-                android:letterSpacing="0.1"/>
+                android:textSize="14sp"
+                android:textStyle="bold"/>
 
             <TextView
                 android:layout_width="wrap_content"
@@ -159,13 +153,23 @@
                 android:textSize="10sp"/>
         </LinearLayout>
 
+    </LinearLayout>
+
+    <!-- Grid 2x2 - Linha 2 -->
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="0dp"
+        android:layout_weight="1"
+        android:orientation="horizontal"
+        android:layout_marginTop="8dp">
+
         <!-- Card 3: Bluetooth -->
         <LinearLayout
             android:id="@+id/cardBluetooth"
             android:layout_width="0dp"
-            android:layout_height="0dp"
-            android:layout_columnWeight="1"
-            android:layout_rowWeight="1"
+            android:layout_height="match_parent"
+            android:layout_weight="1"
+            android:layout_marginEnd="6dp"
             android:background="#1A1A3E"
             android:gravity="center"
             android:orientation="vertical"
@@ -178,9 +182,9 @@
                 android:layout_height="48dp"
                 android:background="#0D47A1"
                 android:gravity="center"
-                android:text="⦿"
+                android:text="BT"
                 android:textColor="#42A5F5"
-                android:textSize="28sp"
+                android:textSize="22sp"
                 android:textStyle="bold"/>
 
             <TextView
@@ -189,14 +193,13 @@
                 android:layout_marginTop="10dp"
                 android:text="BLUETOOTH"
                 android:textColor="#42A5F5"
-                android:textSize="13sp"
-                android:textStyle="bold"
-                android:letterSpacing="0.1"/>
+                android:textSize="14sp"
+                android:textStyle="bold"/>
 
             <TextView
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
-                android:text="BLE Scan &amp; Spam"
+                android:text="BLE Scan and Spam"
                 android:textColor="#666666"
                 android:textSize="10sp"/>
         </LinearLayout>
@@ -205,9 +208,9 @@
         <LinearLayout
             android:id="@+id/cardWifi"
             android:layout_width="0dp"
-            android:layout_height="0dp"
-            android:layout_columnWeight="1"
-            android:layout_rowWeight="1"
+            android:layout_height="match_parent"
+            android:layout_weight="1"
+            android:layout_marginStart="6dp"
             android:background="#2E1A1A"
             android:gravity="center"
             android:orientation="vertical"
@@ -220,9 +223,9 @@
                 android:layout_height="48dp"
                 android:background="#B71C1C"
                 android:gravity="center"
-                android:text="▨"
+                android:text="WF"
                 android:textColor="#FF5252"
-                android:textSize="28sp"
+                android:textSize="22sp"
                 android:textStyle="bold"/>
 
             <TextView
@@ -231,29 +234,28 @@
                 android:layout_marginTop="10dp"
                 android:text="WI-FI"
                 android:textColor="#FF5252"
-                android:textSize="13sp"
-                android:textStyle="bold"
-                android:letterSpacing="0.1"/>
+                android:textSize="14sp"
+                android:textStyle="bold"/>
 
             <TextView
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
-                android:text="Deauth &amp; Evil Twin"
+                android:text="Deauth and Evil Twin"
                 android:textColor="#666666"
                 android:textSize="10sp"/>
         </LinearLayout>
 
-    </GridLayout>
+    </LinearLayout>
 
     <!-- Footer -->
     <TextView
         android:id="@+id/tvFooter"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:layout_alignParentBottom="true"
         android:gravity="center"
-        android:text="Crazy Cat · ESP32"
+        android:text="Crazy Cat . ESP32"
         android:textColor="#333333"
-        android:textSize="11sp"/>
+        android:textSize="11sp"
+        android:layout_marginTop="12dp"/>
 
-</RelativeLayout>
+</LinearLayout>
