@@ -554,7 +554,7 @@ class ToolViewerActivity : AppCompatActivity() {
             item.addView(tvChevron)
         }
 
-        val params = item.layoutParams as LinearLayout.MarginLayoutParams
+        val params = item.layoutParams as LinearLayout.LayoutParams
         params.bottomMargin = 8
         item.layoutParams = params
 
