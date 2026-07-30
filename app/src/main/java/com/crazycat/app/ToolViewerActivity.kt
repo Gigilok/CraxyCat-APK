@@ -1,12 +1,9 @@
 package com.crazycat.app
 
-import android.animation.ValueAnimator
 import android.content.Intent
 import android.graphics.Color
 import android.graphics.drawable.GradientDrawable
 import android.os.Bundle
-import android.os.Handler
-import android.os.Looper
 import android.view.Gravity
 import android.view.View
 import android.widget.Button
@@ -112,6 +109,9 @@ class ToolViewerActivity : AppCompatActivity() {
         btnStop = findViewById(R.id.btnStop)
     }
 
+    // ============================================================
+    // PANEL MANAGEMENT
+    // ============================================================
     private fun showPanel(mode: String) {
         barChart.visibility = View.GONE
         listContainer.visibility = View.GONE
@@ -145,6 +145,9 @@ class ToolViewerActivity : AppCompatActivity() {
         }
     }
 
+    // ============================================================
+    // TOOL STARTER
+    // ============================================================
     private fun startTool(tool: String, mode: String, param: Int) {
         isRunning = true
         startTime = System.currentTimeMillis()
@@ -284,6 +287,9 @@ class ToolViewerActivity : AppCompatActivity() {
         }
     }
 
+    // ============================================================
+    // STOP
+    // ============================================================
     private fun stopAndFinish() {
         pollJob?.cancel()
         timerJob?.cancel()
@@ -312,6 +318,9 @@ class ToolViewerActivity : AppCompatActivity() {
 
     override fun onBackPressed() { stopAndFinish() }
 
+    // ============================================================
+    // STATUS HELPERS
+    // ============================================================
     private fun setStatusRunning(running: Boolean) {
         isRunning = running
         runOnUiThread {
@@ -327,25 +336,32 @@ class ToolViewerActivity : AppCompatActivity() {
 
     private fun startTimer() {
         timerJob = lifecycleScope.launch {
-            while (true) {
+            var done = false
+            while (!done) {
                 val elapsed = ((System.currentTimeMillis() - startTime) / 1000)
                 val min = String.format("%02d", elapsed / 60)
                 val sec = String.format("%02d", elapsed % 60)
                 runOnUiThread { tvStatusTimer.text = "$min:$sec" }
-                delay(1000)
+                if (!done) delay(1000)
             }
         }
     }
 
+    // FIX: Criar GradientDrawable programaticamente (XML tem ColorDrawable)
     private fun startPulse(color: Int) {
         pulseJob = lifecycleScope.launch {
-            val gd = pulseCircle.background as GradientDrawable
-            while (true) {
+            val gd = GradientDrawable()
+            gd.cornerRadius = 60f
+            runOnUiThread { pulseCircle.background = gd }
+            var done = false
+            while (!done) {
                 for (alpha in 100..255 step 5) {
+                    if (done) break
                     gd.setColor(Color.argb(alpha, Color.red(color), Color.green(color), Color.blue(color)))
                     delay(20)
                 }
                 for (alpha in 255 downTo 100 step 5) {
+                    if (done) break
                     gd.setColor(Color.argb(alpha, Color.red(color), Color.green(color), Color.blue(color)))
                     delay(20)
                 }
@@ -353,9 +369,15 @@ class ToolViewerActivity : AppCompatActivity() {
         }
     }
 
+    // ============================================================
+    // POLLING: NRF24 SCANNER (16 bars graph)
+    // Firmware envia: { "bars": [int8 x 16], "packets": uint32 }
+    // int8 (-128..127) => shift +128 => 0..255
+    // ============================================================
     private suspend fun pollNRF24Scanner() {
         pollJob = lifecycleScope.launch {
-            while (true) {
+            var done = false
+            while (!done) {
                 try {
                     val json = Esp32Client.nrf24ScanData()
                     if (json != null) {
@@ -366,80 +388,150 @@ class ToolViewerActivity : AppCompatActivity() {
                         for (i in 0 until barsArr.length()) {
                             values.add(barsArr.getInt(i) + 128)
                         }
+                        val p = packets
+                        val v = values.toList()
                         runOnUiThread {
-                            barChart.setBars(values, 256)
-                            tvInfoText.text = "Canais: 2.4 GHz"
-                            tvInfoText2.text = "Pacotes: $packets"
+                            barChart.setBars(v, 256)
+                            tvInfoText.text = "2.4 GHz - 16 canais NRF24"
+                            tvInfoText2.text = "Pacotes detectados: $p"
                         }
                     }
                 } catch (_: Exception) {}
-                delay(400)
+                if (!done) delay(400)
             }
         }
     }
 
+    // ============================================================
+    // POLLING: CC1101 ANALYZER (64 bars graph)
+    // Firmware envia: { "bars": [uint16 x 64], "freqs": [uint32 x 64 Hz], "running": bool }
+    // ============================================================
     private suspend fun pollCC1101Analyzer() {
         pollJob = lifecycleScope.launch {
-            while (true) {
+            var done = false
+            while (!done) {
                 try {
-                    val data = Esp32Client.cc1101AnalyzerData()
-                    if (data != null) {
-                        val obj = JSONObject(data)
+                    val json = Esp32Client.cc1101AnalyzerData()
+                    if (json != null) {
+                        val obj = JSONObject(json)
                         val barsArr = obj.getJSONArray("bars")
                         val freqsArr = obj.getJSONArray("freqs")
-                        val values = mutableListOf<Int>()
-                        for (i in 0 until barsArr.length()) {
-                            values.add(barsArr.getInt(i))
-                        }
-                        runOnUiThread {
-                            barChart.setBars(values, 40)
-                            tvInfoText.text = "Espectro Sub-GHz (64 pontos)"
-                            if (freqsArr.length() > 0) {
-                                tvInfoText2.text = "${freqsArr.getInt(0)}-${freqsArr.getInt(freqsArr.length()-1)} MHz"
+                        val isRunning = obj.optBoolean("running", false)
+                        if (!isRunning) {
+                            runOnUiThread { setStatusRunning(false) }
+                            done = true
+                        } else {
+                            val values = mutableListOf<Int>()
+                            for (i in 0 until barsArr.length()) {
+                                values.add(barsArr.getInt(i))
+                            }
+                            val maxVal = (values.maxOrNull() ?: 1).coerceAtLeast(1)
+                            val fMin = if (freqsArr.length() > 0) freqsArr.getLong(0) / 1000000.0 else 0.0
+                            val fMax = if (freqsArr.length() > 1) freqsArr.getLong(freqsArr.length() - 1) / 1000000.0 else 0.0
+                            val v = values.toList()
+                            val mv = maxVal
+                            val fmin = fMin
+                            val fmax = fMax
+                            runOnUiThread {
+                                barChart.setBars(v, mv)
+                                tvInfoText.text = "Espectro Sub-GHz (64 pontos)"
+                                tvInfoText2.text = String.format("%.1f - %.1f MHz", fmin, fmax)
                             }
                         }
                     }
                 } catch (_: Exception) {}
-                delay(300)
+                if (!done) delay(300)
             }
         }
     }
 
+    // ============================================================
+    // POLLING: GENERIC STATUS (usa /api/status com dados reais)
+    // Firmware retorna flags reais de cada ataque ativo
+    // ============================================================
     private suspend fun pollGenericStatus() {
         pollJob = lifecycleScope.launch {
-            while (true) {
+            var done = false
+            while (!done) {
                 try {
-                    val connected = Esp32Client.checkConnection()
-                    if (!connected) {
-                        setStatusRunning(false)
-                        break
+                    val json = Esp32Client.getStatus()
+                    if (json == null) {
+                        runOnUiThread { setStatusRunning(false) }
+                        done = true
+                    } else {
+                        val obj = JSONObject(json)
+                        val tool = intent.getStringExtra(EXTRA_TOOL) ?: ""
+                        val active = when (tool) {
+                            "nrf24_jammer" -> obj.optBoolean("nrf24_jammer", false)
+                            "cc1101_rolljam" -> obj.optBoolean("cc1101_rolljam", false)
+                            "cc1101_jammer" -> obj.optBoolean("cc1101_capturing", false)
+                            "drone_jammer" -> obj.optBoolean("drone_jammer", false)
+                            "camera_freeze" -> obj.optBoolean("camera_freeze", false)
+                            "bt_jammer" -> obj.optBoolean("bt_jammer", false)
+                            "deauth" -> obj.optBoolean("deauth_active", false)
+                            "eviltwin" -> obj.optBoolean("eviltwin_active", false)
+                            else -> true
+                        }
+                        if (!active) {
+                            runOnUiThread {
+                                setStatusRunning(false)
+                                tvStatusDetail.text = "Parado"
+                            }
+                            done = true
+                        }
                     }
                 } catch (_: Exception) {}
-                delay(2000)
+                if (!done) delay(2000)
             }
         }
     }
 
+    // ============================================================
+    // POLLING: CAPTURE STATUS (usa /api/status cc1101_capturing)
+    // Firmware: cc1101_capturing = true enquanto captura, cc1101_signals = count
+    // ============================================================
     private suspend fun pollCaptureStatus() {
         pollJob = lifecycleScope.launch {
-            var finished = false
-            while (!finished) {
+            var done = false
+            while (!done) {
                 try {
-                    val connected = Esp32Client.checkConnection()
-                    if (connected) {
-                        setStatusRunning(false)
-                        finished = true
+                    val json = Esp32Client.getStatus()
+                    if (json == null) {
+                        runOnUiThread { setStatusRunning(false) }
+                        done = true
+                    } else {
+                        val obj = JSONObject(json)
+                        val capturing = obj.optBoolean("cc1101_capturing", false)
+                        val signals = obj.optInt("cc1101_signals", 0)
+                        if (!capturing) {
+                            val s = signals
+                            runOnUiThread {
+                                tvStatusTitle.text = if (s > 0) "SINAL CAPTURADO" else "CAPTURA CONCLUIDA"
+                                tvStatusDetail.text = if (s > 0) "$s sinal(is) salvo(s)" else "Nenhum sinal detectado"
+                                setStatusRunning(false)
+                            }
+                            done = true
+                        } else {
+                            val s = signals
+                            runOnUiThread {
+                                tvStatusDetail.text = "Varrendo frequencias... ($s sinais)"
+                            }
+                        }
                     }
                 } catch (_: Exception) {}
-                if (!finished) delay(1000)
+                if (!done) delay(1000)
             }
         }
     }
 
+    // ============================================================
+    // POLLING: BRUTE FORCE (progress)
+    // Firmware: { "running": bool, "current_index": uint16, "gate_total": uint16 }
+    // ============================================================
     private suspend fun pollBruteForce() {
         pollJob = lifecycleScope.launch {
-            var finished = false
-            while (!finished) {
+            var done = false
+            while (!done) {
                 try {
                     val json = Esp32Client.bfStatus()
                     if (json != null) {
@@ -456,7 +548,7 @@ class ToolViewerActivity : AppCompatActivity() {
                                 progressBar.progress = 100
                                 setStatusRunning(false)
                             }
-                            finished = true
+                            done = true
                         } else {
                             val p = percent
                             val c = current
@@ -469,11 +561,15 @@ class ToolViewerActivity : AppCompatActivity() {
                         }
                     }
                 } catch (_: Exception) {}
-                if (!finished) delay(500)
+                if (!done) delay(500)
             }
         }
     }
 
+    // ============================================================
+    // POLLING: BT DEVICES (usa /api/attack/bt/status)
+    // Firmware: { "ble_available": bool, "scanning": bool, "device_count": int }
+    // ============================================================
     private suspend fun pollBTDevices() {
         pollJob = lifecycleScope.launch {
             var attempts = 0
@@ -501,6 +597,9 @@ class ToolViewerActivity : AppCompatActivity() {
         }
     }
 
+    // ============================================================
+    // LIST BUILDERS
+    // ============================================================
     private fun createListItem(title: String, subtitle: String, accentColor: Int, clickable: Boolean = false, onClick: (() -> Unit)? = null): View {
         val item = LinearLayout(this).apply {
             orientation = LinearLayout.HORIZONTAL
@@ -554,6 +653,7 @@ class ToolViewerActivity : AppCompatActivity() {
             item.addView(tvChevron)
         }
 
+        // FIX: Usar LinearLayout.LayoutParams (tem bottomMargin herdado)
         val params = item.layoutParams as LinearLayout.LayoutParams
         params.bottomMargin = 8
         item.layoutParams = params
@@ -565,6 +665,10 @@ class ToolViewerActivity : AppCompatActivity() {
         runOnUiThread { listContent.removeAllViews() }
     }
 
+    // ============================================================
+    // LOAD: SIGNALS (read-only)
+    // Firmware: { "signals": [{ "id": int, "name": str, "frequency": uint32 Hz }] }
+    // ============================================================
     private suspend fun loadSignalListReadOnly() {
         try {
             val json = Esp32Client.cc1101GetSignals() ?: return
@@ -582,11 +686,12 @@ class ToolViewerActivity : AppCompatActivity() {
             for (i in 0 until arr.length()) {
                 val sig = arr.getJSONObject(i)
                 val name = sig.optString("name", "Sinal $i")
-                val freq = sig.optLong("frequency", 0) / 1000000
+                val freq = sig.optLong("frequency", 0) / 1000000.0
                 val id = sig.optInt("id", i)
+                val f = String.format("%.2f", freq)
                 runOnUiThread {
                     listContent.addView(createListItem(
-                        name, "${freq} MHz  |  ID: $id", Color.parseColor("#00FF41")
+                        name, "$f MHz  |  ID: $id", Color.parseColor("#00FF41")
                     ))
                 }
             }
@@ -596,6 +701,9 @@ class ToolViewerActivity : AppCompatActivity() {
         }
     }
 
+    // ============================================================
+    // LOAD: SIGNALS (pick to replay)
+    // ============================================================
     private suspend fun loadSignalList() {
         try {
             val json = Esp32Client.cc1101GetSignals() ?: return
@@ -613,12 +721,13 @@ class ToolViewerActivity : AppCompatActivity() {
             for (i in 0 until arr.length()) {
                 val sig = arr.getJSONObject(i)
                 val name = sig.optString("name", "Sinal $i")
-                val freq = sig.optLong("frequency", 0) / 1000000
+                val freq = sig.optLong("frequency", 0) / 1000000.0
                 val id = sig.optInt("id", i)
                 val captureId = id
+                val f = String.format("%.2f", freq)
                 runOnUiThread {
                     listContent.addView(createListItem(
-                        name, "${freq} MHz  |  ID: $id", Color.parseColor("#00FF41"), true
+                        name, "$f MHz  |  ID: $id", Color.parseColor("#00FF41"), true
                     ) {
                         lifecycleScope.launch {
                             Toast.makeText(this@ToolViewerActivity, "Reproduzindo $name...", Toast.LENGTH_SHORT).show()
@@ -634,6 +743,9 @@ class ToolViewerActivity : AppCompatActivity() {
         }
     }
 
+    // ============================================================
+    // LOAD: SIGNALS (pick for Keeloq)
+    // ============================================================
     private suspend fun loadSignalListForKeeloq() {
         try {
             keeloqPanel.visibility = View.GONE
@@ -667,12 +779,13 @@ class ToolViewerActivity : AppCompatActivity() {
             for (i in 0 until arr.length()) {
                 val sig = arr.getJSONObject(i)
                 val name = sig.optString("name", "Sinal $i")
-                val freq = sig.optLong("frequency", 0) / 1000000
+                val freq = sig.optLong("frequency", 0) / 1000000.0
                 val id = sig.optInt("id", i)
                 val captureId = id
+                val f = String.format("%.2f", freq)
                 runOnUiThread {
                     listContent.addView(createListItem(
-                        name, "${freq} MHz  |  ID: $id", Color.parseColor("#00FF41"), true
+                        name, "$f MHz  |  ID: $id", Color.parseColor("#00FF41"), true
                     ) {
                         lifecycleScope.launch { processKeeloq(captureId) }
                     })
@@ -684,6 +797,10 @@ class ToolViewerActivity : AppCompatActivity() {
         }
     }
 
+    // ============================================================
+    // PROCESS KEELOQ
+    // Firmware: { "frequency": uint32, "length": uint8, "timings": [uint16] }
+    // ============================================================
     private suspend fun processKeeloq(signalId: Int) {
         try {
             runOnUiThread {
@@ -737,6 +854,10 @@ class ToolViewerActivity : AppCompatActivity() {
         }
     }
 
+    // ============================================================
+    // LOAD: NETWORKS (read-only)
+    // Firmware: { "networks": [{ "id", "ssid", "channel", "rssi", "encrypted", "bssid" }] }
+    // ============================================================
     private suspend fun loadNetworkList() {
         try {
             val json = Esp32Client.wifiScanNetworks() ?: return
@@ -760,7 +881,6 @@ class ToolViewerActivity : AppCompatActivity() {
                 val bssid = net.optString("bssid", "")
                 val id = net.optInt("id", i)
                 val lockIcon = if (encrypted) " [WPA]" else " [OPEN]"
-                val captureId = id
                 runOnUiThread {
                     listContent.addView(createListItem(
                         ssid, "CH:$channel  RSSI:$rssi$lockIcon  $bssid",
@@ -774,6 +894,9 @@ class ToolViewerActivity : AppCompatActivity() {
         }
     }
 
+    // ============================================================
+    // LOAD: NETWORKS (pick for Deauth)
+    // ============================================================
     private suspend fun loadNetworkListForDeauth() {
         try {
             val json = Esp32Client.wifiScanNetworks() ?: return
@@ -810,6 +933,7 @@ class ToolViewerActivity : AppCompatActivity() {
                             tvStatusDetail.text = "Desautenticando $ssid"
                             startPulse(Color.parseColor("#FF5252"))
                             Esp32Client.deauthStart(captureId)
+                            pollGenericStatus()
                         }
                     })
                 }
@@ -820,6 +944,9 @@ class ToolViewerActivity : AppCompatActivity() {
         }
     }
 
+    // ============================================================
+    // LOAD: NETWORKS (pick for Evil Twin)
+    // ============================================================
     private suspend fun loadNetworkListForEvilTwin() {
         try {
             val json = Esp32Client.wifiScanNetworks() ?: return
@@ -856,6 +983,7 @@ class ToolViewerActivity : AppCompatActivity() {
                             tvStatusDetail.text = "Clonando $ssid"
                             startPulse(Color.parseColor("#FF9100"))
                             Esp32Client.eviltwinStart(captureId)
+                            pollGenericStatus()
                         }
                     })
                 }
@@ -866,6 +994,10 @@ class ToolViewerActivity : AppCompatActivity() {
         }
     }
 
+    // ============================================================
+    // LOAD: BT DEVICES (pick for jammer)
+    // Firmware: { "devices": [{ "id": int, "name": str, "rssi": int }] }
+    // ============================================================
     private suspend fun loadBTDeviceList() {
         try {
             val json = Esp32Client.btDevices() ?: return
@@ -910,6 +1042,7 @@ class ToolViewerActivity : AppCompatActivity() {
                             tvStatusDetail.text = "Jamming $name"
                             startPulse(Color.parseColor("#42A5F5"))
                             Esp32Client.btJammerStart(captureId)
+                            pollGenericStatus()
                         }
                     })
                 }
@@ -920,6 +1053,9 @@ class ToolViewerActivity : AppCompatActivity() {
         }
     }
 
+    // ============================================================
+    // LOAD: BT DEVICES (read-only after scan)
+    // ============================================================
     private suspend fun loadBTDeviceListReadOnly() {
         try {
             val json = Esp32Client.btDevices() ?: return
@@ -958,6 +1094,10 @@ class ToolViewerActivity : AppCompatActivity() {
         }
     }
 
+    // ============================================================
+    // CRACK FLOW (Aircrack)
+    // Firmware handshake: { "capturing": bool, "complete": bool, "frames": int }
+    // ============================================================
     private suspend fun runCrackFlow() {
         try {
             runOnUiThread {
