@@ -3,8 +3,13 @@ package com.crazycat.app.api
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import okhttp3.FormBody
+import okhttp3.MediaType.Companion.toMediaType
 import okhttp3.OkHttpClient
 import okhttp3.Request
+import okhttp3.RequestBody.Companion.toRequestBody
+import org.json.JSONArray
+import org.json.JSONObject
+import java.io.File
 import java.util.concurrent.TimeUnit
 
 object Esp32Client {
@@ -75,6 +80,22 @@ object Esp32Client {
     suspend fun eviltwinStop(): Boolean = sendPost("/api/eviltwin/stop")
     suspend fun handshakeStatus(): String? = sendGet("/api/handshake")
 
+    // === WIFI - DOWNLOAD HANDSHAKE PCAP ===
+    // Baixa o arquivo PCAP do ESP32 e salva localmente. Retorna o File ou null.
+    suspend fun handshakeDownload(pcapFile: File): Boolean = withContext(Dispatchers.IO) {
+        try {
+            val request = Request.Builder().url("$BASE_URL/api/handshake/download").build()
+            client.newCall(request).execute().use { response ->
+                if (!response.isSuccessful) return@withContext false
+                val body = response.body ?: return@withContext false
+                body.byteStream().use { input ->
+                    pcapFile.outputStream().use { output -> input.copyTo(output) }
+                }
+                true
+            }
+        } catch (e: Exception) { false }
+    }
+
     // === ATTACKS ===
     suspend fun droneJammerStart(): Boolean = sendPost("/api/attack/drone/jammer/start")
     suspend fun droneJammerStop(): Boolean = sendPost("/api/attack/drone/jammer/stop")
@@ -85,4 +106,19 @@ object Esp32Client {
     suspend fun bfCarStart(brand: Int): Boolean = sendPost("/api/attack/bf/car/start", mapOf("brand" to brand.toString()))
     suspend fun bfCarStop(): Boolean = sendPost("/api/attack/bf/car/stop")
     suspend fun bfStatus(): String? = sendGet("/api/attack/bf/status")
+
+    // === CC1101 TRANSMIT RAW (JSON body para Keeloq) ===
+    suspend fun cc1101TransmitRaw(frequency: Long, timings: List<Int>): Boolean = withContext(Dispatchers.IO) {
+        try {
+            val json = JSONObject()
+            json.put("frequency", frequency)
+            json.put("timings", JSONArray(timings))
+            val body = json.toString().toRequestBody("application/json".toMediaType())
+            val request = Request.Builder()
+                .url("$BASE_URL/api/cc1101/transmit_raw")
+                .post(body)
+                .build()
+            client.newCall(request).execute().use { it.isSuccessful }
+        } catch (e: Exception) { false }
+    }
 }
