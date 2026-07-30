@@ -9,7 +9,6 @@ object AircrackRunner {
         val outDir = context.filesDir
         
         // Lista de todos os arquivos que estão na pasta assets/binaries/
-        // Inclui o executável e as 7 bibliotecas .so
         val filesToExtract = arrayOf(
             "aircrack_arm64", "libsqlite3.so", "libnl-3.so", 
             "libnl-genl-3.so", "libssl.so.3", "libcrypto.so.3", 
@@ -63,16 +62,20 @@ object AircrackRunner {
                 val process = processBuilder.start()
                 
                 val reader = process.inputStream.bufferedReader()
-                var line: String?
                 var foundKey: String? = null
                 
-                while (reader.readLine().also { line = it } != null) {
-                    if (line!!.contains("KEY FOUND!")) {
+                // CORREÇÃO: Ler a linha primeiro e depois verificar
+                var currentLine: String? = reader.readLine()
+                while (currentLine != null) {
+                    val line = currentLine // Agora o Kotlin tem certeza que não é nulo
+                    if (line.contains("KEY FOUND!")) {
                         foundKey = line.substringAfter("[").substringBefore("]").trim()
                         process.destroy()
                         break
                     }
+                    currentLine = reader.readLine()
                 }
+                
                 onResult(foundKey)
             } catch (e: Exception) {
                 onResult(null)
