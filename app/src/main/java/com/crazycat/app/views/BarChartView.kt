@@ -47,9 +47,11 @@ class BarChartView @JvmOverloads constructor(
         bars.clear()
         bars.addAll(values)
 
+        // Initialize animated bars if needed
         while (animatedBars.size < bars.size) animatedBars.add(0f)
         while (animatedBars.size > bars.size) animatedBars.removeAt(animatedBars.size - 1)
 
+        // Animate
         bars.forEachIndexed { i, targetVal ->
             val target = targetVal.toFloat() / maxVal
             val current = animatedBars[i]
@@ -73,11 +75,13 @@ class BarChartView @JvmOverloads constructor(
         val h = height.toFloat()
         val barCount = max(animatedBars.size, 1)
 
+        // Draw grid lines (4 horizontal)
         for (i in 1..4) {
             val y = h * i / 5f
             canvas.drawLine(0f, y, w, y, gridPaint)
         }
 
+        // Draw bars
         val totalGap = (barCount + 1) * 2f
         val barW = (w - totalGap) / barCount
         val bottomY = h - 25f
@@ -90,6 +94,7 @@ class BarChartView @JvmOverloads constructor(
             val x = 2f + i * (barW + 2f)
             val y = bottomY - barH
 
+            // Color based on height
             if (fraction > 0.8f) {
                 barPaint.color = barColorHigh
                 glowPaint.color = barColorHigh
@@ -98,17 +103,20 @@ class BarChartView @JvmOverloads constructor(
                 glowPaint.color = barColor
             }
 
+            // Glow effect for active bars
             if (fraction > 0.1f) {
                 glowPaint.alpha = (fraction * 50).toInt()
                 barRect.set(x - 1, y - 1, x + barW + 1, bottomY + 1)
                 canvas.drawRoundRect(barRect, 2f, 2f, glowPaint)
             }
 
+            // Bar
             if (barH > 0) {
                 barRect.set(x, y, x + barW, bottomY)
                 canvas.drawRoundRect(barRect, 2f, 2f, barPaint)
             }
 
+            // Bottom label (every N bars)
             if (barCount <= 16 || i % 8 == 0) {
                 textPaint.textSize = if (barCount <= 16) 18f else 14f
                 canvas.drawText("$i", x + barW / 2f, h - 4f, textPaint)
