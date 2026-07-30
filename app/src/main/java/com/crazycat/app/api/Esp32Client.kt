@@ -49,8 +49,11 @@ object Esp32Client {
         } catch (e: Exception) { false }
     }
 
-    // === STATUS COMPLETO (retorna JSON bruto do /api/status) ===
-    suspend fun getStatus(): String? = sendGet("/api/status")
+    /**
+     * GET /api/status — returns the full JSON status object
+     * Used to check flags like cc1101_capturing, nrf24_scanning, etc.
+     */
+    suspend fun checkStatusJson(): String? = sendGet("/api/status")
 
     // === SUB-GHz (CC1101) ===
     suspend fun cc1101Copy(): Boolean = sendPost("/api/cc1101/copy")
