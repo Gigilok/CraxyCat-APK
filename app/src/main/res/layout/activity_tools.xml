@@ -1,0 +1,55 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:id="@+id/toolsContainer"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:orientation="vertical"
+    android:background="#121212"
+    android:padding="10dp">
+
+    <Button
+        android:id="@+id/btnTool1"
+        android:text="Ferramenta 1"
+        android:backgroundTint="#333333"
+        android:textColor="#00FF00"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginBottom="8dp"/>
+
+    <Button
+        android:id="@+id/btnTool2"
+        android:text="Ferramenta 2"
+        android:backgroundTint="#333333"
+        android:textColor="#00FF00"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginBottom="8dp"/>
+
+    <Button
+        android:id="@+id/btnTool3"
+        android:text="Ferramenta 3"
+        android:backgroundTint="#333333"
+        android:textColor="#FF5722"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginBottom="8dp"/>
+
+    <Button
+        android:id="@+id/btnTool4"
+        android:text="Ferramenta 4"
+        android:backgroundTint="#333333"
+        android:textColor="#FF5722"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginBottom="8dp"/>
+
+    <Button
+        android:id="@+id/btnTool5"
+        android:text="Ferramenta 5"
+        android:backgroundTint="#333333"
+        android:textColor="#00FF00"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginBottom="8dp"/>
+
+</LinearLayout>
