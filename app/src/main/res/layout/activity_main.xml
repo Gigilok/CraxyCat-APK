@@ -3,33 +3,89 @@
     android:layout_width="match_parent"
     android:layout_height="match_parent"
     android:orientation="vertical"
-    android:padding="20dp"
-    android:gravity="center"
-    android:background="#121212">
+    android:background="#000000"
+    android:padding="10dp">
 
     <TextView
         android:id="@+id/tvStatus"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:text="Crazy Cat v3.1 Pronto"
-        android:textColor="#00FF00"
-        android:textSize="18sp"
+        android:text="Crazy Cat v3.1\nConectando ao ESP32..."
+        android:textColor="#FF0000"
+        android:textSize="16sp"
+        android:textStyle="bold"
         android:gravity="center"
-        android:layout_marginBottom="30dp"/>
+        android:padding="10dp"/>
 
-    <Button
-        android:id="@+id/btnCloneRolling"
+    <ScrollView
         android:layout_width="match_parent"
-        android:layout_height="wrap_content"
-        android:text="CLONE ROLLING CODE (KEELOQ)"
-        android:backgroundTint="#FF5722"
-        android:layout_marginBottom="15dp"/>
+        android:layout_height="match_parent">
 
-    <Button
-        android:id="@+id/btnCrackWifi"
-        android:layout_width="match_parent"
-        android:layout_height="wrap_content"
-        android:text="CRACK WIFI HANDSHAKE"
-        android:backgroundTint="#2196F3"/>
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="vertical">
 
+            <TextView
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:text="--- CC1101 (Sub-GHz) ---"
+                android:textColor="#AAAAAA"
+                android:gravity="center"
+                android:paddingTop="10dp"/>
+
+            <Button android:id="@+id/btnCC1101Copy" android:text="Copy (Capturar)" style="@style/CatButton"/>
+            <Button android:id="@+id/btnCC1101Replay" android:text="Replay (Repetir)" style="@style/CatButton"/>
+            <Button android:id="@+id/btnCC1101Jammer" android:text="Jammer Sub-GHz" style="@style/CatButton"/>
+            <Button android:id="@+id/btnCC1101RollJam" android:text="RollJam (Catch & Jam)" style="@style/CatButton"/>
+            <Button android:id="@+id/btnCC1101Analyzer" android:text="Analisador Espectro" style="@style/CatButton"/>
+
+            <TextView
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:text="--- NRF24 (2.4GHz) ---"
+                android:textColor="#AAAAAA"
+                android:gravity="center"
+                android:paddingTop="15dp"/>
+
+            <Button android:id="@+id/btnNRF24Jammer" android:text="NRF24 Jammer" style="@style/CatButton"/>
+            <Button android:id="@+id/btnNRF24Scan" android:text="NRF24 Scanner" style="@style/CatButton"/>
+
+            <TextView
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:text="--- BLUETOOTH ---"
+                android:textColor="#AAAAAA"
+                android:gravity="center"
+                android:paddingTop="15dp"/>
+
+            <Button android:id="@+id/btnBLESpam" android:text="BLE Spam (Apple/Samsung)" style="@style/CatButton"/>
+            <Button android:id="@+id/btnBLEScan" android:text="BLE Scanner" style="@style/CatButton"/>
+
+            <TextView
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:text="--- ATAQUES WiFi ---"
+                android:textColor="#AAAAAA"
+                android:gravity="center"
+                android:paddingTop="15dp"/>
+
+            <Button android:id="@+id/btnDeauth" android:text="Deauth Attack" style="@style/CatButton"/>
+            <Button android:id="@+id/btnEvilTwin" android:text="Evil Twin (Captive Portal)" style="@style/CatButton"/>
+            <Button android:id="@+id/btnHandshake" android:text="Capturar Handshake" style="@style/CatButton"/>
+
+            <TextView
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:text="--- OUTROS ---"
+                android:textColor="#AAAAAA"
+                android:gravity="center"
+                android:paddingTop="15dp"/>
+
+            <Button android:id="@+id/btnDroneJammer" android:text="Drone Jammer" style="@style/CatButton"/>
+            <Button android:id="@+id/btnCameraFreeze" android:text="Camera Freeze" style="@style/CatButton"/>
+            <Button android:id="@+id/btnBruteForce" android:text="Brute Force (Portão/Carro)" style="@style/CatButton"/>
+
+        </LinearLayout>
+    </ScrollView>
 </LinearLayout>
