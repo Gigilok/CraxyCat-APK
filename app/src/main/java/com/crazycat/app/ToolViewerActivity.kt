@@ -36,7 +36,6 @@ class ToolViewerActivity : AppCompatActivity() {
         const val EXTRA_PARAM = "param"
     }
 
-    // UI
     private lateinit var tvTitle: TextView
     private lateinit var tvStatusIndicator: TextView
     private lateinit var infoBar: LinearLayout
@@ -113,9 +112,6 @@ class ToolViewerActivity : AppCompatActivity() {
         btnStop = findViewById(R.id.btnStop)
     }
 
-    // ============================================================
-    // PANEL MANAGEMENT
-    // ============================================================
     private fun showPanel(mode: String) {
         barChart.visibility = View.GONE
         listContainer.visibility = View.GONE
@@ -151,9 +147,6 @@ class ToolViewerActivity : AppCompatActivity() {
         }
     }
 
-    // ============================================================
-    // TOOL STARTER
-    // ============================================================
     private fun startTool(tool: String, mode: String, param: Int) {
         isRunning = true
         startTime = System.currentTimeMillis()
@@ -161,7 +154,6 @@ class ToolViewerActivity : AppCompatActivity() {
         startTimer()
 
         when (tool) {
-            // === NRF24 ===
             "nrf24_scanner" -> {
                 lifecycleScope.launch {
                     Esp32Client.nrf24ScannerStart()
@@ -170,15 +162,13 @@ class ToolViewerActivity : AppCompatActivity() {
             }
             "nrf24_jammer" -> {
                 lifecycleScope.launch {
-                    Esp32Client.nrf24JammerStart()
                     tvStatusTitle.text = "NRF24 JAMMER"
                     tvStatusDetail.text = "2.4 GHz - Bloqueando"
                     startPulse(Color.parseColor("#FF9100"))
+                    Esp32Client.nrf24JammerStart()
                     pollGenericStatus()
                 }
             }
-
-            // === CC1101 ===
             "cc1101_copy" -> {
                 lifecycleScope.launch {
                     tvStatusTitle.text = "CAPTURANDO"
@@ -232,8 +222,6 @@ class ToolViewerActivity : AppCompatActivity() {
                     setStatusRunning(false)
                 }
             }
-
-            // === BLUETOOTH ===
             "bt_scan" -> {
                 lifecycleScope.launch {
                     Esp32Client.btScan()
@@ -247,8 +235,6 @@ class ToolViewerActivity : AppCompatActivity() {
             "bt_jammer" -> {
                 lifecycleScope.launch { loadBTDeviceList() }
             }
-
-            // === WIFI ===
             "wifi_scan" -> {
                 lifecycleScope.launch {
                     Esp32Client.wifiScanNetworksPost()
@@ -265,8 +251,6 @@ class ToolViewerActivity : AppCompatActivity() {
             "crack" -> {
                 lifecycleScope.launch { runCrackFlow() }
             }
-
-            // === ATTACKS ===
             "drone_jammer" -> {
                 lifecycleScope.launch {
                     tvStatusTitle.text = "DRONE JAMMER"
@@ -302,9 +286,6 @@ class ToolViewerActivity : AppCompatActivity() {
         }
     }
 
-    // ============================================================
-    // STOP
-    // ============================================================
     private fun stopAndFinish() {
         pollJob?.cancel()
         timerJob?.cancel()
@@ -333,9 +314,6 @@ class ToolViewerActivity : AppCompatActivity() {
 
     override fun onBackPressed() { stopAndFinish() }
 
-    // ============================================================
-    // STATUS HELPERS
-    // ============================================================
     private fun setStatusRunning(running: Boolean) {
         isRunning = running
         runOnUiThread {
@@ -377,9 +355,6 @@ class ToolViewerActivity : AppCompatActivity() {
         }
     }
 
-    // ============================================================
-    // POLLING: NRF24 SCANNER (16 bars graph)
-    // ============================================================
     private suspend fun pollNRF24Scanner() {
         pollJob = lifecycleScope.launch {
             while (true) {
@@ -390,7 +365,7 @@ class ToolViewerActivity : AppCompatActivity() {
                     val packets = obj.optLong("packets", 0)
                     val values = mutableListOf<Int>()
                     for (i in 0 until barsArr.length()) {
-                        values.add(barsArr.getInt(i) + 128) // shift from int8
+                        values.add(barsArr.getInt(i) + 128)
                     }
                     runOnUiThread {
                         barChart.setBars(values, 256)
@@ -403,15 +378,12 @@ class ToolViewerActivity : AppCompatActivity() {
         }
     }
 
-    // ============================================================
-    // POLLING: CC1101 ANALYZER (64 bars graph)
-    // ============================================================
     private suspend fun pollCC1101Analyzer() {
         pollJob = lifecycleScope.launch {
             while (true) {
                 try {
-                    val json = Esp32Client.cc1101AnalyzerData() ?: continue
-                    val obj = JSONObject(json)
+                    val data = Esp32Client.cc1101AnalyzerData() ?: continue
+                    val obj = JSONObject(data)
                     val barsArr = obj.getJSONArray("bars")
                     val freqsArr = obj.getJSONArray("freqs")
                     val values = mutableListOf<Int>()
@@ -431,15 +403,12 @@ class ToolViewerActivity : AppCompatActivity() {
         }
     }
 
-    // ============================================================
-    // POLLING: GENERIC STATUS
-    // ============================================================
     private suspend fun pollGenericStatus() {
         pollJob = lifecycleScope.launch {
             while (true) {
                 try {
-                    val json = Esp32Client.checkConnection()
-                    if (json == null) {
+                    val connected = Esp32Client.checkConnection()
+                    if (!connected) {
                         setStatusRunning(false)
                         break
                     }
@@ -449,27 +418,14 @@ class ToolViewerActivity : AppCompatActivity() {
         }
     }
 
-    // ============================================================
-    // POLLING: CAPTURE STATUS
-    // ============================================================
     private suspend fun pollCaptureStatus() {
         pollJob = lifecycleScope.launch {
             while (true) {
                 try {
-                    val json = Esp32Client.checkConnection()
-                    if (json != null) {
-                        val obj = JSONObject(json)
-                        val capturing = obj.optBoolean("cc1101_capturing", false)
-                        val signals = obj.optInt("cc1101_signals", 0)
-                        runOnUiThread {
-                            tvStatusDetail.text = if (capturing) "Varrendo frequencias..." else "Captura completa!"
-                            if (!capturing && signals > 0) {
-                                tvStatusTitle.text = "SINAL CAPTURADO"
-                                tvStatusDetail.text = "$signals sinal(is) salvo(s)"
-                                setStatusRunning(false)
-                                return@launch
-                            }
-                        }
+                    val connected = Esp32Client.checkConnection()
+                    if (connected) {
+                        setStatusRunning(false)
+                        return@launch
                     }
                 } catch (_: Exception) {}
                 delay(1000)
@@ -477,9 +433,6 @@ class ToolViewerActivity : AppCompatActivity() {
         }
     }
 
-    // ============================================================
-    // POLLING: BRUTE FORCE (progress)
-    // ============================================================
     private suspend fun pollBruteForce() {
         pollJob = lifecycleScope.launch {
             while (true) {
@@ -509,16 +462,12 @@ class ToolViewerActivity : AppCompatActivity() {
         }
     }
 
-    // ============================================================
-    // POLLING: BT DEVICES
-    // ============================================================
     private suspend fun pollBTDevices() {
-        // First wait for scan
         pollJob = lifecycleScope.launch {
             var attempts = 0
             while (attempts < 30) {
                 try {
-                    val json = Esp32Client.btStatus() ?: continue
+                    val json = Esp32Client.btStatus() ?: run { attempts++; delay(1000); continue }
                     val obj = JSONObject(json)
                     val scanning = obj.optBoolean("scanning", false)
                     if (!scanning) {
@@ -533,9 +482,6 @@ class ToolViewerActivity : AppCompatActivity() {
         }
     }
 
-    // ============================================================
-    // LIST BUILDERS
-    // ============================================================
     private fun createListItem(title: String, subtitle: String, accentColor: Int, clickable: Boolean = false, onClick: (() -> Unit)? = null): View {
         val item = LinearLayout(this).apply {
             orientation = LinearLayout.HORIZONTAL
@@ -548,14 +494,12 @@ class ToolViewerActivity : AppCompatActivity() {
             }
         }
 
-        // Accent bar
         val accent = View(this).apply {
             layoutParams = LinearLayout.LayoutParams(4, LinearLayout.LayoutParams.MATCH_PARENT)
             setBackgroundColor(accentColor)
         }
         item.addView(accent)
 
-        // Text column
         val textCol = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
             layoutParams = LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f)
@@ -574,17 +518,16 @@ class ToolViewerActivity : AppCompatActivity() {
             val tvSub = TextView(this).apply {
                 text = subtitle
                 setTextColor(Color.parseColor("#888888"))
-                textSize = 12sp
+                textSize = 12f
             }
             textCol.addView(tvSub)
         }
 
         item.addView(textCol)
 
-        // Chevron
         if (clickable) {
             val tvChevron = TextView(this).apply {
-                text = "▶"
+                text = "\u25B6"
                 setTextColor(Color.parseColor("#333333"))
                 textSize = 14f
                 gravity = Gravity.CENTER_VERTICAL
@@ -592,7 +535,6 @@ class ToolViewerActivity : AppCompatActivity() {
             item.addView(tvChevron)
         }
 
-        // Bottom margin
         val params = item.layoutParams as LinearLayout.MarginLayoutParams
         params.bottomMargin = 8
         item.layoutParams = params
@@ -604,9 +546,6 @@ class ToolViewerActivity : AppCompatActivity() {
         runOnUiThread { listContent.removeAllViews() }
     }
 
-    // ============================================================
-    // LOAD: SIGNALS (read-only)
-    // ============================================================
     private suspend fun loadSignalListReadOnly() {
         try {
             val json = Esp32Client.cc1101GetSignals() ?: return
@@ -638,9 +577,6 @@ class ToolViewerActivity : AppCompatActivity() {
         }
     }
 
-    // ============================================================
-    // LOAD: SIGNALS (pick to replay)
-    // ============================================================
     private suspend fun loadSignalList() {
         try {
             val json = Esp32Client.cc1101GetSignals() ?: return
@@ -679,12 +615,8 @@ class ToolViewerActivity : AppCompatActivity() {
         }
     }
 
-    // ============================================================
-    // LOAD: SIGNALS (pick for Keeloq)
-    // ============================================================
     private suspend fun loadSignalListForKeeloq() {
         try {
-            // Show keeloq panel initially with signal list below
             keeloqPanel.visibility = View.GONE
             listContainer.visibility = View.VISIBLE
 
@@ -693,12 +625,11 @@ class ToolViewerActivity : AppCompatActivity() {
             val arr = obj.getJSONArray("signals")
             clearList()
 
-            // Add header
             runOnUiThread {
                 val header = TextView(this).apply {
                     text = "Selecione um sinal para Rolling Code:"
                     setTextColor(Color.parseColor("#00FF41"))
-                    textSize = 14sp
+                    textSize = 14f
                     setTypeface(null, android.graphics.Typeface.BOLD)
                     setPadding(0, 0, 0, 16)
                 }
@@ -736,7 +667,6 @@ class ToolViewerActivity : AppCompatActivity() {
 
     private suspend fun processKeeloq(signalId: Int) {
         try {
-            // Switch to keeloq panel
             runOnUiThread {
                 listContainer.visibility = View.GONE
                 keeloqPanel.visibility = View.VISIBLE
@@ -788,9 +718,6 @@ class ToolViewerActivity : AppCompatActivity() {
         }
     }
 
-    // ============================================================
-    // LOAD: NETWORKS (read-only)
-    // ============================================================
     private suspend fun loadNetworkList() {
         try {
             val json = Esp32Client.wifiScanNetworks() ?: return
@@ -828,9 +755,6 @@ class ToolViewerActivity : AppCompatActivity() {
         }
     }
 
-    // ============================================================
-    // LOAD: NETWORKS (pick for Deauth)
-    // ============================================================
     private suspend fun loadNetworkListForDeauth() {
         try {
             val json = Esp32Client.wifiScanNetworks() ?: return
@@ -842,7 +766,7 @@ class ToolViewerActivity : AppCompatActivity() {
                 val header = TextView(this).apply {
                     text = "Selecione uma rede para Deauth:"
                     setTextColor(Color.parseColor("#FF5252"))
-                    textSize = 14sp
+                    textSize = 14f
                     setTypeface(null, android.graphics.Typeface.BOLD)
                     setPadding(0, 0, 0, 16)
                 }
@@ -877,9 +801,6 @@ class ToolViewerActivity : AppCompatActivity() {
         }
     }
 
-    // ============================================================
-    // LOAD: NETWORKS (pick for Evil Twin)
-    // ============================================================
     private suspend fun loadNetworkListForEvilTwin() {
         try {
             val json = Esp32Client.wifiScanNetworks() ?: return
@@ -891,7 +812,7 @@ class ToolViewerActivity : AppCompatActivity() {
                 val header = TextView(this).apply {
                     text = "Selecione uma rede para Evil Twin:"
                     setTextColor(Color.parseColor("#FF9100"))
-                    textSize = 14sp
+                    textSize = 14f
                     setTypeface(null, android.graphics.Typeface.BOLD)
                     setPadding(0, 0, 0, 16)
                 }
@@ -926,9 +847,6 @@ class ToolViewerActivity : AppCompatActivity() {
         }
     }
 
-    // ============================================================
-    // LOAD: BT DEVICES (pick for jammer)
-    // ============================================================
     private suspend fun loadBTDeviceList() {
         try {
             val json = Esp32Client.btDevices() ?: return
@@ -940,7 +858,7 @@ class ToolViewerActivity : AppCompatActivity() {
                 val header = TextView(this).apply {
                     text = "Selecione um dispositivo BLE:"
                     setTextColor(Color.parseColor("#42A5F5"))
-                    textSize = 14sp
+                    textSize = 14f
                     setTypeface(null, android.graphics.Typeface.BOLD)
                     setPadding(0, 0, 0, 16)
                 }
@@ -983,9 +901,6 @@ class ToolViewerActivity : AppCompatActivity() {
         }
     }
 
-    // ============================================================
-    // LOAD: BT DEVICES (read-only)
-    // ============================================================
     private suspend fun loadBTDeviceListReadOnly() {
         try {
             val json = Esp32Client.btDevices() ?: return
@@ -1024,9 +939,6 @@ class ToolViewerActivity : AppCompatActivity() {
         }
     }
 
-    // ============================================================
-    // CRACK FLOW (Aircrack)
-    // ============================================================
     private suspend fun runCrackFlow() {
         try {
             runOnUiThread {
