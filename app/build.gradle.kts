@@ -16,7 +16,6 @@ android {
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
         
-        // Configuração do NDK para o motor Keeloq em C++
         ndk {
             abiFilters += listOf("arm64-v8a", "armeabi-v7a")
         }
@@ -36,7 +35,6 @@ android {
         jvmTarget = "1.8"
     }
     
-    // Integração do C++ 
     externalNativeBuild {
         cmake {
             path = file("src/main/cpp/CMakeLists.txt")
@@ -51,10 +49,7 @@ dependencies {
     implementation("com.google.android.material:material:1.11.0")
     implementation("androidx.constraintlayout:constraintlayout:2.1.4")
     
-    // Rede Assíncrona (Comunicação com ESP32)
     implementation("com.squareup.okhttp3:okhttp:4.12.0")
-    
-    // Coroutines (Para não travar a tela do celular)
     implementation("org.jetbrains.kotlinx:kotlinx-coroutines-android:1.7.3")
     implementation("androidx.lifecycle:lifecycle-runtime-ktx:2.7.0")
 }
