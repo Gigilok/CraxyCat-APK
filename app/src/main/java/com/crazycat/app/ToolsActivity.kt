@@ -51,6 +51,7 @@ class ToolsActivity : AppCompatActivity() {
             findViewById<TextView>(R.id.tvTool8)
         )
 
+        // Hide all
         btns.forEach { it.visibility = View.GONE }
 
         fun tool(btn: View, tv: TextView, label: String, tool: String, mode: String, param: Int = 0) {
@@ -98,7 +99,7 @@ class ToolsActivity : AppCompatActivity() {
                 )
             }
             "BLUETOOTH" -> {
-                tool(btns[0], tvs[0], "BLE Scan", "bt_scan", "list_devices")
+                tool(btns[0], tvs[0], "BLE Scan", "bt_scan", "status")
                 tool(btns[1], tvs[1], "BLE Jammer", "bt_jammer", "pick_device")
                 stopTool(btns[2], tvs[2], "Parar BT",
                     { Esp32Client.btJammerStop() }
