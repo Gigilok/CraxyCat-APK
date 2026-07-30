@@ -1,238 +1,360 @@
 <?xml version="1.0" encoding="utf-8"?>
-<RelativeLayout xmlns:android="http://schemas.android.com/apk/res/android"
+<ScrollView xmlns:android="http://schemas.android.com/apk/res/android"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
-    android:background="#0A0A0A"
-    android:padding="16dp">
+    android:background="#0A0A0A">
 
-    <!-- Header -->
-    <LinearLayout
-        android:id="@+id/toolsHeader"
+    <RelativeLayout
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:layout_alignParentTop="true"
-        android:gravity="center_vertical"
-        android:orientation="horizontal"
-        android:layout_marginBottom="20dp">
+        android:padding="16dp">
 
-        <TextView
-            android:layout_width="0dp"
+        <!-- Header -->
+        <LinearLayout
+            android:id="@+id/toolsHeader"
+            android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:layout_weight="1"
-            android:text="TOOLKIT"
-            android:textColor="#FFFFFF"
-            android:textSize="20sp"
-            android:textStyle="bold"
-            android:letterSpacing="0.15"/>
+            android:layout_alignParentTop="true"
+            android:gravity="center_vertical"
+            android:orientation="horizontal"
+            android:layout_marginBottom="20dp">
 
-        <TextView
-            android:id="@+id/tvToolsCategory"
-            android:layout_width="wrap_content"
+            <TextView
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_weight="1"
+                android:text="TOOLKIT"
+                android:textColor="#FFFFFF"
+                android:textSize="20sp"
+                android:textStyle="bold"
+                android:letterSpacing="0.15"/>
+
+            <TextView
+                android:id="@+id/tvToolsCategory"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="SUB-GHz"
+                android:textColor="#00FF41"
+                android:textSize="12sp"/>
+        </LinearLayout>
+
+        <!-- Lista de ferramentas -->
+        <LinearLayout
+            android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:text="SUB-GHz"
-            android:textColor="#00FF41"
-            android:textSize="12sp"/>
-    </LinearLayout>
+            android:layout_below="@id/toolsHeader"
+            android:orientation="vertical">
 
-    <!-- Lista de ferramentas -->
-    <LinearLayout
-        android:layout_width="match_parent"
-        android:layout_height="wrap_content"
-        android:layout_below="@id/toolsHeader"
-        android:layout_centerVertical="true"
-        android:orientation="vertical">
+            <!-- Tool 1 -->
+            <LinearLayout
+                android:id="@+id/btnTool1"
+                android:layout_width="match_parent"
+                android:layout_height="60dp"
+                android:background="#162447"
+                android:gravity="center_vertical"
+                android:orientation="horizontal"
+                android:paddingStart="20dp"
+                android:paddingEnd="20dp"
+                android:layout_marginBottom="8dp"
+                android:clickable="true"
+                android:focusable="true">
 
-        <!-- Tool 1 -->
-        <LinearLayout
-            android:id="@+id/btnTool1"
-            android:layout_width="match_parent"
-            android:layout_height="60dp"
-            android:background="#162447"
-            android:gravity="center_vertical"
-            android:orientation="horizontal"
-            android:paddingStart="20dp"
-            android:paddingEnd="20dp"
-            android:layout_marginBottom="8dp"
-            android:clickable="true"
-            android:focusable="true">
+                <View
+                    android:layout_width="4dp"
+                    android:layout_height="28dp"
+                    android:background="#00FF41"/>
 
-            <View
-                android:layout_width="4dp"
-                android:layout_height="28dp"
-                android:background="#00FF41"/>
+                <TextView
+                    android:id="@+id/tvTool1"
+                    android:layout_width="0dp"
+                    android:layout_height="wrap_content"
+                    android:layout_weight="1"
+                    android:layout_marginStart="16dp"
+                    android:text="Ferramenta 1"
+                    android:textColor="#FFFFFF"
+                    android:textSize="15sp"
+                    android:textStyle="bold"/>
 
-            <TextView
-                android:id="@+id/tvTool1"
-                android:layout_width="0dp"
-                android:layout_height="wrap_content"
-                android:layout_weight="1"
-                android:layout_marginStart="16dp"
-                android:text="Ferramenta 1"
-                android:textColor="#FFFFFF"
-                android:textSize="15sp"
-                android:textStyle="bold"/>
+                <TextView
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="&#9654;"
+                    android:textColor="#333333"
+                    android:textSize="14sp"/>
+            </LinearLayout>
 
-            <TextView
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:text="▶"
-                android:textColor="#333333"
-                android:textSize="14sp"/>
+            <!-- Tool 2 -->
+            <LinearLayout
+                android:id="@+id/btnTool2"
+                android:layout_width="match_parent"
+                android:layout_height="60dp"
+                android:background="#1A1A2E"
+                android:gravity="center_vertical"
+                android:orientation="horizontal"
+                android:paddingStart="20dp"
+                android:paddingEnd="20dp"
+                android:layout_marginBottom="8dp"
+                android:clickable="true"
+                android:focusable="true">
+
+                <View
+                    android:layout_width="4dp"
+                    android:layout_height="28dp"
+                    android:background="#42A5F5"/>
+
+                <TextView
+                    android:id="@+id/tvTool2"
+                    android:layout_width="0dp"
+                    android:layout_height="wrap_content"
+                    android:layout_weight="1"
+                    android:layout_marginStart="16dp"
+                    android:text="Ferramenta 2"
+                    android:textColor="#FFFFFF"
+                    android:textSize="15sp"
+                    android:textStyle="bold"/>
+
+                <TextView
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="&#9654;"
+                    android:textColor="#333333"
+                    android:textSize="14sp"/>
+            </LinearLayout>
+
+            <!-- Tool 3 -->
+            <LinearLayout
+                android:id="@+id/btnTool3"
+                android:layout_width="match_parent"
+                android:layout_height="60dp"
+                android:background="#2E1A1A"
+                android:gravity="center_vertical"
+                android:orientation="horizontal"
+                android:paddingStart="20dp"
+                android:paddingEnd="20dp"
+                android:layout_marginBottom="8dp"
+                android:clickable="true"
+                android:focusable="true"
+                android:visibility="gone">
+
+                <View
+                    android:layout_width="4dp"
+                    android:layout_height="28dp"
+                    android:background="#FF5252"/>
+
+                <TextView
+                    android:id="@+id/tvTool3"
+                    android:layout_width="0dp"
+                    android:layout_height="wrap_content"
+                    android:layout_weight="1"
+                    android:layout_marginStart="16dp"
+                    android:text="Ferramenta 3"
+                    android:textColor="#FFFFFF"
+                    android:textSize="15sp"
+                    android:textStyle="bold"/>
+
+                <TextView
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="&#9654;"
+                    android:textColor="#333333"
+                    android:textSize="14sp"/>
+            </LinearLayout>
+
+            <!-- Tool 4 -->
+            <LinearLayout
+                android:id="@+id/btnTool4"
+                android:layout_width="match_parent"
+                android:layout_height="60dp"
+                android:background="#1F1A2E"
+                android:gravity="center_vertical"
+                android:orientation="horizontal"
+                android:paddingStart="20dp"
+                android:paddingEnd="20dp"
+                android:layout_marginBottom="8dp"
+                android:clickable="true"
+                android:focusable="true"
+                android:visibility="gone">
+
+                <View
+                    android:layout_width="4dp"
+                    android:layout_height="28dp"
+                    android:background="#FF9100"/>
+
+                <TextView
+                    android:id="@+id/tvTool4"
+                    android:layout_width="0dp"
+                    android:layout_height="wrap_content"
+                    android:layout_weight="1"
+                    android:layout_marginStart="16dp"
+                    android:text="Ferramenta 4"
+                    android:textColor="#FFFFFF"
+                    android:textSize="15sp"
+                    android:textStyle="bold"/>
+
+                <TextView
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="&#9654;"
+                    android:textColor="#333333"
+                    android:textSize="14sp"/>
+            </LinearLayout>
+
+            <!-- Tool 5 -->
+            <LinearLayout
+                android:id="@+id/btnTool5"
+                android:layout_width="match_parent"
+                android:layout_height="60dp"
+                android:background="#1A2E1A"
+                android:gravity="center_vertical"
+                android:orientation="horizontal"
+                android:paddingStart="20dp"
+                android:paddingEnd="20dp"
+                android:layout_marginBottom="8dp"
+                android:clickable="true"
+                android:focusable="true"
+                android:visibility="gone">
+
+                <View
+                    android:layout_width="4dp"
+                    android:layout_height="28dp"
+                    android:background="#76FF03"/>
+
+                <TextView
+                    android:id="@+id/tvTool5"
+                    android:layout_width="0dp"
+                    android:layout_height="wrap_content"
+                    android:layout_weight="1"
+                    android:layout_marginStart="16dp"
+                    android:text="Ferramenta 5"
+                    android:textColor="#FFFFFF"
+                    android:textSize="15sp"
+                    android:textStyle="bold"/>
+
+                <TextView
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="&#9654;"
+                    android:textColor="#333333"
+                    android:textSize="14sp"/>
+            </LinearLayout>
+
+            <!-- Tool 6 -->
+            <LinearLayout
+                android:id="@+id/btnTool6"
+                android:layout_width="match_parent"
+                android:layout_height="60dp"
+                android:background="#2E2E1A"
+                android:gravity="center_vertical"
+                android:orientation="horizontal"
+                android:paddingStart="20dp"
+                android:paddingEnd="20dp"
+                android:layout_marginBottom="8dp"
+                android:clickable="true"
+                android:focusable="true"
+                android:visibility="gone">
+
+                <View
+                    android:layout_width="4dp"
+                    android:layout_height="28dp"
+                    android:background="#FFD600"/>
+
+                <TextView
+                    android:id="@+id/tvTool6"
+                    android:layout_width="0dp"
+                    android:layout_height="wrap_content"
+                    android:layout_weight="1"
+                    android:layout_marginStart="16dp"
+                    android:text="Ferramenta 6"
+                    android:textColor="#FFFFFF"
+                    android:textSize="15sp"
+                    android:textStyle="bold"/>
+
+                <TextView
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="&#9654;"
+                    android:textColor="#333333"
+                    android:textSize="14sp"/>
+            </LinearLayout>
+
+            <!-- Tool 7 -->
+            <LinearLayout
+                android:id="@+id/btnTool7"
+                android:layout_width="match_parent"
+                android:layout_height="60dp"
+                android:background="#1A2E2E"
+                android:gravity="center_vertical"
+                android:orientation="horizontal"
+                android:paddingStart="20dp"
+                android:paddingEnd="20dp"
+                android:layout_marginBottom="8dp"
+                android:clickable="true"
+                android:focusable="true"
+                android:visibility="gone">
+
+                <View
+                    android:layout_width="4dp"
+                    android:layout_height="28dp"
+                    android:background="#00BCD4"/>
+
+                <TextView
+                    android:id="@+id/tvTool7"
+                    android:layout_width="0dp"
+                    android:layout_height="wrap_content"
+                    android:layout_weight="1"
+                    android:layout_marginStart="16dp"
+                    android:text="Ferramenta 7"
+                    android:textColor="#FFFFFF"
+                    android:textSize="15sp"
+                    android:textStyle="bold"/>
+
+                <TextView
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="&#9654;"
+                    android:textColor="#333333"
+                    android:textSize="14sp"/>
+            </LinearLayout>
+
+            <!-- Tool 8 -->
+            <LinearLayout
+                android:id="@+id/btnTool8"
+                android:layout_width="match_parent"
+                android:layout_height="60dp"
+                android:background="#2E1A2E"
+                android:gravity="center_vertical"
+                android:orientation="horizontal"
+                android:paddingStart="20dp"
+                android:paddingEnd="20dp"
+                android:layout_marginBottom="8dp"
+                android:clickable="true"
+                android:focusable="true"
+                android:visibility="gone">
+
+                <View
+                    android:layout_width="4dp"
+                    android:layout_height="28dp"
+                    android:background="#E040FB"/>
+
+                <TextView
+                    android:id="@+id/tvTool8"
+                    android:layout_width="0dp"
+                    android:layout_height="wrap_content"
+                    android:layout_weight="1"
+                    android:layout_marginStart="16dp"
+                    android:text="Ferramenta 8"
+                    android:textColor="#FFFFFF"
+                    android:textSize="15sp"
+                    android:textStyle="bold"/>
+
+                <TextView
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="&#9654;"
+                    android:textColor="#333333"
+                    android:textSize="14sp"/>
+            </LinearLayout>
+
         </LinearLayout>
-
-        <!-- Tool 2 -->
-        <LinearLayout
-            android:id="@+id/btnTool2"
-            android:layout_width="match_parent"
-            android:layout_height="60dp"
-            android:background="#1A1A2E"
-            android:gravity="center_vertical"
-            android:orientation="horizontal"
-            android:paddingStart="20dp"
-            android:paddingEnd="20dp"
-            android:layout_marginBottom="8dp"
-            android:clickable="true"
-            android:focusable="true">
-
-            <View
-                android:layout_width="4dp"
-                android:layout_height="28dp"
-                android:background="#42A5F5"/>
-
-            <TextView
-                android:id="@+id/tvTool2"
-                android:layout_width="0dp"
-                android:layout_height="wrap_content"
-                android:layout_weight="1"
-                android:layout_marginStart="16dp"
-                android:text="Ferramenta 2"
-                android:textColor="#FFFFFF"
-                android:textSize="15sp"
-                android:textStyle="bold"/>
-
-            <TextView
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:text="▶"
-                android:textColor="#333333"
-                android:textSize="14sp"/>
-        </LinearLayout>
-
-        <!-- Tool 3 -->
-        <LinearLayout
-            android:id="@+id/btnTool3"
-            android:layout_width="match_parent"
-            android:layout_height="60dp"
-            android:background="#2E1A1A"
-            android:gravity="center_vertical"
-            android:orientation="horizontal"
-            android:paddingStart="20dp"
-            android:paddingEnd="20dp"
-            android:layout_marginBottom="8dp"
-            android:clickable="true"
-            android:focusable="true">
-
-            <View
-                android:layout_width="4dp"
-                android:layout_height="28dp"
-                android:background="#FF5252"/>
-
-            <TextView
-                android:id="@+id/tvTool3"
-                android:layout_width="0dp"
-                android:layout_height="wrap_content"
-                android:layout_weight="1"
-                android:layout_marginStart="16dp"
-                android:text="Ferramenta 3"
-                android:textColor="#FFFFFF"
-                android:textSize="15sp"
-                android:textStyle="bold"/>
-
-            <TextView
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:text="▶"
-                android:textColor="#333333"
-                android:textSize="14sp"/>
-        </LinearLayout>
-
-        <!-- Tool 4 -->
-        <LinearLayout
-            android:id="@+id/btnTool4"
-            android:layout_width="match_parent"
-            android:layout_height="60dp"
-            android:background="#1F1A2E"
-            android:gravity="center_vertical"
-            android:orientation="horizontal"
-            android:paddingStart="20dp"
-            android:paddingEnd="20dp"
-            android:layout_marginBottom="8dp"
-            android:clickable="true"
-            android:focusable="true">
-
-            <View
-                android:layout_width="4dp"
-                android:layout_height="28dp"
-                android:background="#FF9100"/>
-
-            <TextView
-                android:id="@+id/tvTool4"
-                android:layout_width="0dp"
-                android:layout_height="wrap_content"
-                android:layout_weight="1"
-                android:layout_marginStart="16dp"
-                android:text="Ferramenta 4"
-                android:textColor="#FFFFFF"
-                android:textSize="15sp"
-                android:textStyle="bold"/>
-
-            <TextView
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:text="▶"
-                android:textColor="#333333"
-                android:textSize="14sp"/>
-        </LinearLayout>
-
-        <!-- Tool 5 (hidden by default) -->
-        <LinearLayout
-            android:id="@+id/btnTool5"
-            android:layout_width="match_parent"
-            android:layout_height="60dp"
-            android:background="#1A2E1A"
-            android:gravity="center_vertical"
-            android:orientation="horizontal"
-            android:paddingStart="20dp"
-            android:paddingEnd="20dp"
-            android:layout_marginBottom="8dp"
-            android:clickable="true"
-            android:focusable="true"
-            android:visibility="gone">
-
-            <View
-                android:layout_width="4dp"
-                android:layout_height="28dp"
-                android:background="#76FF03"/>
-
-            <TextView
-                android:id="@+id/tvTool5"
-                android:layout_width="0dp"
-                android:layout_height="wrap_content"
-                android:layout_weight="1"
-                android:layout_marginStart="16dp"
-                android:text="Ferramenta 5"
-                android:textColor="#FFFFFF"
-                android:textSize="15sp"
-                android:textStyle="bold"/>
-
-            <TextView
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:text="▶"
-                android:textColor="#333333"
-                android:textSize="14sp"/>
-        </LinearLayout>
-
-    </LinearLayout>
-
-</RelativeLayout>
+    </RelativeLayout>
+</ScrollView>
