@@ -3,61 +3,59 @@
     android:layout_width="match_parent"
     android:layout_height="match_parent"
     android:orientation="vertical"
-    android:background="#121212">
+    android:background="#000000"
+    android:gravity="center"
+    android:padding="20dp">
 
-    <!-- Cabeçalho de Conexão -->
     <TextView
         android:id="@+id/tvStatus"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:text="⛔ DESCONECTADO"
-        android:textColor="#FF0000"
-        android:textSize="14sp"
+        android:text="Crazy Cat v3.1"
+        android:textColor="#00FF00"
+        android:textSize="20sp"
         android:textStyle="bold"
-        android:background="#1E1E1E"
-        android:padding="10dp"
-        android:gravity="center"/>
+        android:gravity="center"
+        android:paddingBottom="30dp"/>
 
-    <ScrollView
+    <Button
+        android:id="@+id/btnSubGhz"
         android:layout_width="match_parent"
-        android:layout_height="match_parent">
+        android:layout_height="wrap_content"
+        android:text="📡 SUB-GHz (CC1101)"
+        android:textSize="18sp"
+        android:backgroundTint="#1B5E20"
+        android:textColor="#FFFFFF"
+        android:layout_marginBottom="15dp"/>
 
-        <LinearLayout
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:orientation="vertical"
-            android:padding="8dp">
+    <Button
+        android:id="@+id/btnNrf24"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:text="📶 2.4GHz (NRF24)"
+        android:textSize="18sp"
+        android:backgroundTint="#E65100"
+        android:textColor="#FFFFFF"
+        android:layout_marginBottom="15dp"/>
 
-            <!-- CC1101 Sub-GHz -->
-            <TextView android:layout_width="match_parent" android:layout_height="wrap_content" android:text="📡 SUB-GHZ (CC1101)" android:textColor="#00BCD4" android:textSize="16sp" android:textStyle="bold" android:padding="8dp"/>
-            <Button android:id="@+id/btnCC1101Copy" android:text="📋 Copy" style="@style/CatBtn"/>
-            <Button android:id="@+id/btnCC1101Replay" android:text="▶️ Replay" style="@style/CatBtn"/>
-            <Button android:id="@+id/btnCC1101Jammer" android:text="🚫 Jammer" style="@style/CatBtn"/>
-            <Button android:id="@+id/btnCC1101RollJam" android:text="🛑 RollJam" style="@style/CatBtn"/>
-            <Button android:id="@+id/btnCC1101Analyzer" android:text="📊 Analyzer" style="@style/CatBtn"/>
+    <Button
+        android:id="@+id/btnBluetooth"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:text="🦷 BLUETOOTH"
+        android:textSize="18sp"
+        android:backgroundTint="#0D47A1"
+        android:textColor="#FFFFFF"
+        android:layout_marginBottom="15dp"/>
 
-            <!-- NRF24 2.4GHz -->
-            <TextView android:layout_width="match_parent" android:layout_height="wrap_content" android:text="📶 2.4GHZ (NRF24)" android:textColor="#FFEB3B" android:textSize="16sp" android:textStyle="bold" android:paddingTop="16dp" android:paddingLeft="8dp"/>
-            <Button android:id="@+id/btnNRF24Jammer" android:text="🚫 NRF Jammer" style="@style/CatBtn"/>
-            <Button android:id="@+id/btnNRF24Scan" android:text="🔍 NRF Scan" style="@style/CatBtn"/>
+    <Button
+        android:id="@+id/btnWifi"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:text="📶 WIFI"
+        android:textSize="18sp"
+        android:backgroundTint="#B71C1C"
+        android:textColor="#FFFFFF"
+        android:layout_marginBottom="15dp"/>
 
-            <!-- Bluetooth -->
-            <TextView android:layout_width="match_parent" android:layout_height="wrap_content" android:text="🦷 BLUETOOTH" android:textColor="#2196F3" android:textSize="16sp" android:textStyle="bold" android:paddingTop="16dp" android:paddingLeft="8dp"/>
-            <Button android:id="@+id/btnBLESpam" android:text="💣 BLE Spam" style="@style/CatBtn"/>
-            <Button android:id="@+id/btnBLEScan" android:text="🔍 BLE Scan" style="@style/CatBtn"/>
-
-            <!-- WiFi -->
-            <TextView android:layout_width="match_parent" android:layout_height="wrap_content" android:text="📶 WIFI" android:textColor="#4CAF50" android:textSize="16sp" android:textStyle="bold" android:paddingTop="16dp" android:paddingLeft="8dp"/>
-            <Button android:id="@+id/btnDeauth" android:text="💣 Deauth" style="@style/CatBtn"/>
-            <Button android:id="@+id/btnEvilTwin" android:text="🧙 Evil Twin" style="@style/CatBtn"/>
-            <Button android:id="@+id/btnHandshake" android:text="🤝 Handshake" style="@style/CatBtn"/>
-
-            <!-- Outros -->
-            <TextView android:layout_width="match_parent" android:layout_height="wrap_content" android:text="⚙️ OUTROS" android:textColor="#9C27B0" android:textSize="16sp" android:textStyle="bold" android:paddingTop="16dp" android:paddingLeft="8dp"/>
-            <Button android:id="@+id/btnDroneJammer" android:text="🚁 Drone Jam" style="@style/CatBtn"/>
-            <Button android:id="@+id/btnCameraFreeze" android:text="📷 Cam Freeze" style="@style/CatBtn"/>
-            <Button android:id="@+id/btnBruteForce" android:text="🔓 Brute Force" style="@style/CatBtn"/>
-
-        </LinearLayout>
-    </ScrollView>
 </LinearLayout>
