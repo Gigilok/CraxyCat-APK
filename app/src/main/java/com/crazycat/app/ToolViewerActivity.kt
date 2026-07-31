@@ -655,9 +655,6 @@ class ToolViewerActivity : AppCompatActivity() {
         }
     }
 
-    // ============================================================
-    // LIST BUILDERS
-    // ============================================================
     private fun createListItem(title: String, subtitle: String, accentColor: Int,
                                clickable: Boolean = false, onClick: (() -> Unit)? = null): View {
         val rippleForeground = if (clickable) {
@@ -670,7 +667,9 @@ class ToolViewerActivity : AppCompatActivity() {
 
         val item = LinearLayout(this).apply {
             orientation = LinearLayout.HORIZONTAL
-            background = android.content.resources.getDrawable(R.drawable.list_item_bg, theme)
+            background = androidx.core.content.ContextCompat.getDrawable(
+                this@ToolViewerActivity, R.drawable.list_item_bg
+            )
             setPadding(dp(18), dp(16), dp(18), dp(16))
             gravity = Gravity.CENTER_VERTICAL
             if (clickable && onClick != null) {
@@ -734,11 +733,8 @@ class ToolViewerActivity : AppCompatActivity() {
         return item
     }
 
-    /** Converte dp → px. Método regular (não extension function) para evitar
-     *  problemas de escopo do Kotlin ao acessar `resources` dentro de
-     *  extension functions definidas em classes. */
     private fun dp(value: Int): Int {
-        val density = resources.displayMetrics.density
+        val density = android.content.res.Resources.getSystem().displayMetrics.density
         return (value * density).toInt()
     }
 
@@ -746,9 +742,6 @@ class ToolViewerActivity : AppCompatActivity() {
         runOnUiThread { listContent.removeAllViews() }
     }
 
-    // ============================================================
-    // LOAD: SIGNALS (read-only)
-    // ============================================================
     private suspend fun loadSignalListReadOnly() {
         try {
             val json = Esp32Client.cc1101GetSignals() ?: return
@@ -780,9 +773,6 @@ class ToolViewerActivity : AppCompatActivity() {
         }
     }
 
-    // ============================================================
-    // LOAD: SIGNALS (pick to replay)
-    // ============================================================
     private suspend fun loadSignalList() {
         try {
             val json = Esp32Client.cc1101GetSignals() ?: return
@@ -821,9 +811,6 @@ class ToolViewerActivity : AppCompatActivity() {
         }
     }
 
-    // ============================================================
-    // LOAD: SIGNALS (pick for Keeloq)
-    // ============================================================
     private suspend fun loadSignalListForKeeloq() {
         try {
             keeloqPanel.visibility = View.GONE
@@ -929,9 +916,6 @@ class ToolViewerActivity : AppCompatActivity() {
         }
     }
 
-    // ============================================================
-    // LOAD: NETWORKS (read-only)
-    // ============================================================
     private suspend fun loadNetworkList() {
         try {
             val json = Esp32Client.wifiScanNetworks() ?: return
@@ -967,9 +951,6 @@ class ToolViewerActivity : AppCompatActivity() {
         }
     }
 
-    // ============================================================
-    // LOAD: NETWORKS (pick for Deauth)
-    // ============================================================
     private suspend fun loadNetworkListForDeauth() {
         try {
             val json = Esp32Client.wifiScanNetworks() ?: return
@@ -1016,9 +997,6 @@ class ToolViewerActivity : AppCompatActivity() {
         }
     }
 
-    // ============================================================
-    // LOAD: NETWORKS (pick for Evil Twin)
-    // ============================================================
     private suspend fun loadNetworkListForEvilTwin() {
         try {
             val json = Esp32Client.wifiScanNetworks() ?: return
@@ -1065,9 +1043,6 @@ class ToolViewerActivity : AppCompatActivity() {
         }
     }
 
-    // ============================================================
-    // LOAD: BT DEVICES (pick for jammer)
-    // ============================================================
     private suspend fun loadBTDeviceList() {
         try {
             val json = Esp32Client.btDevices() ?: return
@@ -1122,9 +1097,6 @@ class ToolViewerActivity : AppCompatActivity() {
         }
     }
 
-    // ============================================================
-    // LOAD: BT DEVICES (read-only, after scan)
-    // ============================================================
     private suspend fun loadBTDeviceListReadOnly() {
         try {
             val json = Esp32Client.btDevices() ?: return
@@ -1159,9 +1131,6 @@ class ToolViewerActivity : AppCompatActivity() {
         }
     }
 
-    // ============================================================
-    // CRACK FLOW (Aircrack)
-    // ============================================================
     private suspend fun runCrackFlow() {
         try {
             runOnUiThread {
