@@ -1,0 +1,22 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">Crazy Cat</string>
+    <string name="app_version">v3.2</string>
+    <string name="app_subtitle">Centro de Controle RF</string>
+
+    <string name="cat_subghz">Sub-GHz</string>
+    <string name="cat_subghz_desc">433 · 315 · 868 MHz</string>
+    <string name="cat_nrf24">2.4 GHz</string>
+    <string name="cat_nrf24_desc">Protocolo NRF24</string>
+    <string name="cat_bluetooth">Bluetooth</string>
+    <string name="cat_bluetooth_desc">BLE Scan &amp; Jammer</string>
+    <string name="cat_wifi">Wi-Fi</string>
+    <string name="cat_wifi_desc">Deauth · Evil Twin</string>
+    <string name="cat_attacks">Ataques</string>
+    <string name="cat_attacks_desc">Drone · Câmera · BruteForce</string>
+
+    <string name="status_connecting">Verificando ESP32…</string>
+    <string name="status_online">Crazy Cat Online</string>
+    <string name="status_offline">ESP32 Offline</string>
+    <string name="status_retry">Tentativa %1$d</string>
+</resources>
