@@ -655,6 +655,9 @@ class ToolViewerActivity : AppCompatActivity() {
         }
     }
 
+    // ============================================================
+    // LIST BUILDERS
+    // ============================================================
     private fun createListItem(title: String, subtitle: String, accentColor: Int,
                                clickable: Boolean = false, onClick: (() -> Unit)? = null): View {
         val rippleForeground = if (clickable) {
@@ -668,7 +671,7 @@ class ToolViewerActivity : AppCompatActivity() {
         val item = LinearLayout(this).apply {
             orientation = LinearLayout.HORIZONTAL
             background = android.content.resources.getDrawable(R.drawable.list_item_bg, theme)
-            setPadding(18.dp(), 16.dp(), 18.dp(), 16.dp())
+            setPadding(dp(18), dp(16), dp(18), dp(16))
             gravity = Gravity.CENTER_VERTICAL
             if (clickable && onClick != null) {
                 setOnClickListener { onClick() }
@@ -679,7 +682,7 @@ class ToolViewerActivity : AppCompatActivity() {
         }
 
         val accent = View(this).apply {
-            layoutParams = LinearLayout.LayoutParams(4.dp(), 36.dp())
+            layoutParams = LinearLayout.LayoutParams(dp(4), dp(36))
             setBackgroundColor(accentColor)
         }
         item.addView(accent)
@@ -687,7 +690,7 @@ class ToolViewerActivity : AppCompatActivity() {
         val textCol = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
             layoutParams = LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f)
-            setPadding(16.dp(), 0, 0, 0)
+            setPadding(dp(16), 0, 0, 0)
         }
 
         val tvT = TextView(this).apply {
@@ -725,18 +728,27 @@ class ToolViewerActivity : AppCompatActivity() {
             LinearLayout.LayoutParams.MATCH_PARENT,
             LinearLayout.LayoutParams.WRAP_CONTENT
         )
-        params.bottomMargin = 10.dp()
+        params.bottomMargin = dp(10)
         item.layoutParams = params
 
         return item
     }
 
-    private fun Int.dp(): Int = (this * this@ToolViewerActivity.resources.displayMetrics.density).toInt()
+    /** Converte dp → px. Método regular (não extension function) para evitar
+     *  problemas de escopo do Kotlin ao acessar `resources` dentro de
+     *  extension functions definidas em classes. */
+    private fun dp(value: Int): Int {
+        val density = resources.displayMetrics.density
+        return (value * density).toInt()
+    }
 
     private fun clearList() {
         runOnUiThread { listContent.removeAllViews() }
     }
 
+    // ============================================================
+    // LOAD: SIGNALS (read-only)
+    // ============================================================
     private suspend fun loadSignalListReadOnly() {
         try {
             val json = Esp32Client.cc1101GetSignals() ?: return
@@ -768,6 +780,9 @@ class ToolViewerActivity : AppCompatActivity() {
         }
     }
 
+    // ============================================================
+    // LOAD: SIGNALS (pick to replay)
+    // ============================================================
     private suspend fun loadSignalList() {
         try {
             val json = Esp32Client.cc1101GetSignals() ?: return
@@ -806,6 +821,9 @@ class ToolViewerActivity : AppCompatActivity() {
         }
     }
 
+    // ============================================================
+    // LOAD: SIGNALS (pick for Keeloq)
+    // ============================================================
     private suspend fun loadSignalListForKeeloq() {
         try {
             keeloqPanel.visibility = View.GONE
@@ -822,7 +840,7 @@ class ToolViewerActivity : AppCompatActivity() {
                     setTextColor(Color.parseColor("#22C55E"))
                     textSize = 14f
                     setTypeface(null, android.graphics.Typeface.BOLD)
-                    setPadding(4.dp(), 0, 0, 16.dp())
+                    setPadding(dp(4), 0, 0, dp(16))
                     letterSpacing = 0.02f
                 }
                 listContent.addView(header)
@@ -911,6 +929,9 @@ class ToolViewerActivity : AppCompatActivity() {
         }
     }
 
+    // ============================================================
+    // LOAD: NETWORKS (read-only)
+    // ============================================================
     private suspend fun loadNetworkList() {
         try {
             val json = Esp32Client.wifiScanNetworks() ?: return
@@ -946,6 +967,9 @@ class ToolViewerActivity : AppCompatActivity() {
         }
     }
 
+    // ============================================================
+    // LOAD: NETWORKS (pick for Deauth)
+    // ============================================================
     private suspend fun loadNetworkListForDeauth() {
         try {
             val json = Esp32Client.wifiScanNetworks() ?: return
@@ -959,7 +983,7 @@ class ToolViewerActivity : AppCompatActivity() {
                     setTextColor(Color.parseColor("#EF4444"))
                     textSize = 14f
                     setTypeface(null, android.graphics.Typeface.BOLD)
-                    setPadding(4.dp(), 0, 0, 16.dp())
+                    setPadding(dp(4), 0, 0, dp(16))
                     letterSpacing = 0.02f
                 }
                 listContent.addView(header)
@@ -992,6 +1016,9 @@ class ToolViewerActivity : AppCompatActivity() {
         }
     }
 
+    // ============================================================
+    // LOAD: NETWORKS (pick for Evil Twin)
+    // ============================================================
     private suspend fun loadNetworkListForEvilTwin() {
         try {
             val json = Esp32Client.wifiScanNetworks() ?: return
@@ -1005,7 +1032,7 @@ class ToolViewerActivity : AppCompatActivity() {
                     setTextColor(Color.parseColor("#F59E0B"))
                     textSize = 14f
                     setTypeface(null, android.graphics.Typeface.BOLD)
-                    setPadding(4.dp(), 0, 0, 16.dp())
+                    setPadding(dp(4), 0, 0, dp(16))
                     letterSpacing = 0.02f
                 }
                 listContent.addView(header)
@@ -1038,6 +1065,9 @@ class ToolViewerActivity : AppCompatActivity() {
         }
     }
 
+    // ============================================================
+    // LOAD: BT DEVICES (pick for jammer)
+    // ============================================================
     private suspend fun loadBTDeviceList() {
         try {
             val json = Esp32Client.btDevices() ?: return
@@ -1051,7 +1081,7 @@ class ToolViewerActivity : AppCompatActivity() {
                     setTextColor(Color.parseColor("#3B82F6"))
                     textSize = 14f
                     setTypeface(null, android.graphics.Typeface.BOLD)
-                    setPadding(4.dp(), 0, 0, 16.dp())
+                    setPadding(dp(4), 0, 0, dp(16))
                     letterSpacing = 0.02f
                 }
                 listContent.addView(header)
@@ -1092,6 +1122,9 @@ class ToolViewerActivity : AppCompatActivity() {
         }
     }
 
+    // ============================================================
+    // LOAD: BT DEVICES (read-only, after scan)
+    // ============================================================
     private suspend fun loadBTDeviceListReadOnly() {
         try {
             val json = Esp32Client.btDevices() ?: return
@@ -1126,6 +1159,9 @@ class ToolViewerActivity : AppCompatActivity() {
         }
     }
 
+    // ============================================================
+    // CRACK FLOW (Aircrack)
+    // ============================================================
     private suspend fun runCrackFlow() {
         try {
             runOnUiThread {
