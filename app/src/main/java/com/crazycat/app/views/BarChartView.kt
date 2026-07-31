@@ -1,233 +1,253 @@
 package com.crazycat.app.views
 
-import android.animation.ValueAnimator
 import android.content.Context
 import android.graphics.Canvas
 import android.graphics.Color
+import android.graphics.LinearGradient
 import android.graphics.Paint
 import android.graphics.RectF
+import android.graphics.Shader
 import android.util.AttributeSet
+import android.view.Choreographer
 import android.view.View
 import kotlin.math.max
 import kotlin.math.min
 
-/**
- * Spectrum analyzer bar chart — replicates the CrazyCat firmware OLED style
- * (Flipper Zero style: dual-line bars, peak-hold dots, waterfall, baseline).
- *
- * 16 bars → NRF24 scanner  (with waterfall + peaks)
- * 64 bars → CC1101 analyzer (no waterfall, no peaks, denser)
- */
 class BarChartView @JvmOverloads constructor(
     context: Context,
     attrs: AttributeSet? = null,
     defStyleAttr: Int = 0
 ) : View(context, attrs, defStyleAttr) {
 
-    // ---- data ----
-    private val targetBars = mutableListOf<Int>()   // target values from setBars()
-    private val animBars   = mutableListOf<Float>() // current animated fractions [0..1]
-    private val peakFrac   = mutableListOf<Float>() // peak-hold fractions [0..1]
+    private val targetBars = mutableListOf<Float>()
+    private val animBars   = mutableListOf<Float>()
+    private val peakFrac   = mutableListOf<Float>()
     private var maxVal: Int = 100
 
-    // waterfall history (oldest row = index 0, newest = last)
-    private val WATERFALL_MAX = 30
-    private val waterfallHistory = mutableListOf<List<Float>>() // each entry = per-bar fraction snapshot
+    private val WATERFALL_MAX = 24
+    private val waterfallHistory = mutableListOf<FloatArray>()
     private var waterfallEnabled = false
 
-    // ---- colors (firmware SSD1306 white-on-black → green-on-dark for APK) ----
-    private var barColor:    Int = Color.parseColor("#00FF41")
-    private var peakColor:   Int = Color.parseColor("#AAFFAA")
-    private var gridColor:   Int = Color.parseColor("#1A1A2E")
-    private var labelColor:  Int = Color.parseColor("#555555")
-    private var baseColor:   Int = Color.parseColor("#333333")
-    private var waterfallAlpha = 80
+    private val colorLow      = Color.parseColor("#00D4FF")
+    private val colorMid      = Color.parseColor("#3B82F6")
+    private val colorHigh     = Color.parseColor("#A855F7")
+    private val colorPeak     = Color.parseColor("#F59E0B")
+    private val colorGrid     = Color.parseColor("#1E232D")
+    private val colorBaseline = Color.parseColor("#2A3140")
+    private val colorLabel    = Color.parseColor("#5A6473")
 
-    // ---- paints ----
     private val barPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
-        style = Paint.Style.STROKE
-        strokeWidth = 1f
+        style = Paint.Style.FILL
     }
     private val peakPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
         style = Paint.Style.FILL
+        color = colorPeak
     }
     private val gridPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
-        color = gridColor
+        color = colorGrid
         strokeWidth = 1f
         style = Paint.Style.STROKE
     }
     private val basePaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
-        color = baseColor
-        strokeWidth = 1f
+        color = colorBaseline
+        strokeWidth = 1.5f
     }
     private val textPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
-        color = labelColor
+        color = colorLabel
         textAlign = Paint.Align.CENTER
     }
     private val waterfallPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
         style = Paint.Style.FILL
     }
 
+    private val shaderCache = HashMap<Int, LinearGradient>()
     private val barRect = RectF()
 
-    /**
-     * Set new bar values and animate towards them.
-     * @param values   raw values (e.g. RSSI -100..-40 for NRF24, or 0..40 for CC1101)
-     * @param maxValue the value that maps to 100 % height
-     */
+    private var choreographerCallback: Choreographer.FrameCallback? = null
+    private var lastFrameNanos = 0L
+    private val ANIM_SPEED = 6.0f
+    private val PEAK_DECAY = 0.45f
+
     fun setBars(values: List<Int>, maxValue: Int = 100) {
         maxVal = max(maxValue, 1)
         targetBars.clear()
-        targetBars.addAll(values)
+        targetBars.addAll(values.map { (it.toFloat() / maxVal).coerceIn(0f, 1f) })
 
-        // grow / shrink animated & peak arrays to match
         while (animBars.size < targetBars.size) { animBars.add(0f); peakFrac.add(0f) }
-        while (animBars.size > targetBars.size) { animBars.removeAt(animBars.size - 1); peakFrac.removeAt(peakFrac.size - 1) }
-
-        // Enable waterfall only for 16-bar mode (NRF24)
-        waterfallEnabled = (targetBars.size <= 16)
-
-        // Animate each bar toward its target fraction
-        targetBars.forEachIndexed { i, targetVal ->
-            val target = targetVal.toFloat() / maxVal
-            val current = animBars[i]
-            if (current != target) {
-                val anim = ValueAnimator.ofFloat(current, target)
-                anim.duration = 150
-                anim.addUpdateListener {
-                    animBars[i] = it.animatedValue as Float
-                    invalidate()
-                }
-                anim.start()
-            }
-            // Peak hold: only rise, never fall in this frame
-            if (target > peakFrac[i]) peakFrac[i] = target
+        while (animBars.size > targetBars.size) {
+            animBars.removeAt(animBars.size - 1)
+            peakFrac.removeAt(peakFrac.size - 1)
         }
 
-        // Snapshot current state for waterfall (use post-values so animation completes first)
-        post {
-            val snapshot = animBars.map { it }
+        waterfallEnabled = (targetBars.size <= 16)
+
+        for (i in targetBars.indices) {
+            if (targetBars[i] > peakFrac[i]) peakFrac[i] = targetBars[i]
+        }
+
+        if (waterfallEnabled) {
+            val snapshot = FloatArray(animBars.size) { idx -> animBars[idx] }
             waterfallHistory.add(snapshot)
             if (waterfallHistory.size > WATERFALL_MAX) waterfallHistory.removeAt(0)
         }
 
+        ensureAnimationRunning()
         invalidate()
     }
 
     fun getBarCount(): Int = targetBars.size
 
-    // ------------------------------------------------------------------
-    //  DRAW
-    // ------------------------------------------------------------------
+    fun reset() {
+        for (i in animBars.indices) animBars[i] = 0f
+        for (i in peakFrac.indices) peakFrac[i] = 0f
+        waterfallHistory.clear()
+        shaderCache.clear()
+        invalidate()
+    }
+
+    private fun ensureAnimationRunning() {
+        if (choreographerCallback != null) return
+        val cb = object : Choreographer.FrameCallback {
+            override fun doFrame(frameTimeNanos: Long) {
+                if (lastFrameNanos == 0L) lastFrameNanos = frameTimeNanos
+                val dtSec = ((frameTimeNanos - lastFrameNanos) / 1_000_000_000f).coerceIn(0f, 0.1f)
+                lastFrameNanos = frameTimeNanos
+
+                var needsAnother = false
+                for (i in animBars.indices) {
+                    val target = if (i < targetBars.size) targetBars[i] else 0f
+                    val current = animBars[i]
+                    if (current != target) {
+                        val diff = target - current
+                        val step = diff * (ANIM_SPEED * dtSec)
+                        val newVal = if (kotlin.math.abs(step) >= kotlin.math.abs(diff)) target
+                                     else current + step
+                        animBars[i] = newVal
+                        if (newVal != target) needsAnother = true
+                    }
+                    if (peakFrac[i] > 0f) {
+                        peakFrac[i] = (peakFrac[i] - PEAK_DECAY * dtSec).coerceAtLeast(0f)
+                        if (peakFrac[i] > 0f) needsAnother = true
+                    }
+                }
+
+                invalidate()
+                if (needsAnother || animBars.any { it > 0f } || peakFrac.any { it > 0f }) {
+                    choreographerCallback = this
+                    Choreographer.getInstance().postFrameCallback(this)
+                } else {
+                    choreographerCallback = null
+                    lastFrameNanos = 0L
+                }
+            }
+        }
+        choreographerCallback = cb
+        lastFrameNanos = 0L
+        Choreographer.getInstance().postFrameCallback(cb)
+    }
+
+    override fun onDetachedFromWindow() {
+        super.onDetachedFromWindow()
+        choreographerCallback?.let { Choreographer.getInstance().removeFrameCallback(it) }
+        choreographerCallback = null
+    }
+
     override fun onDraw(canvas: Canvas) {
         super.onDraw(canvas)
         val w = width.toFloat()
         val h = height.toFloat()
         val barCount = max(animBars.size, 1)
 
-        // Layout proportions (mimics firmware: bars take ~65 %, waterfall ~30 %, labels ~5 %)
         val hasWaterfall = waterfallEnabled && waterfallHistory.size > 1
-        val labelH    = if (barCount <= 16) 28f else 18f
-        val waterfallH = if (hasWaterfall) h * 0.25f else 0f
-        val baseY     = h - labelH - waterfallH          // baseline y position
-        val topPad    = 8f
-        val barMaxH   = baseY - topPad                    // max bar height in px
+        val labelH    = if (barCount <= 16) 26f else 16f
+        val waterfallH = if (hasWaterfall) h * 0.22f else 0f
+        val baseY     = h - labelH - waterfallH
+        val topPad    = 10f
+        val barMaxH   = (baseY - topPad).coerceAtLeast(20f)
 
-        // ---- grid lines (4 horizontal, like firmware) ----
         for (i in 1..4) {
             val y = topPad + barMaxH * i / 5f
             canvas.drawLine(0f, y, w, y, gridPaint)
         }
 
-        // ---- calculate bar geometry ----
-        // Firmware: each bar = 2 px wide on 128 px OLED  →  64 bars at 2 px each
-        // APK: scale proportionally, but enforce minimum bar width for readability
-        val gap: Float = if (barCount <= 16) 4f else 1f
-        val barW: Float = (w - (barCount + 1) * gap) / barCount
-        val clampedBarW = max(barW, if (barCount <= 16) 8f else 3f)
-
-        // ---- draw bars (firmware style: two vertical lines per bar) ----
-        barPaint.color = barColor
-        barPaint.strokeWidth = max(clampedBarW / 3f, 1.5f)
+        val gap: Float = if (barCount <= 16) 6f else 1.5f
+        val barW: Float = ((w - (barCount + 1) * gap) / barCount).coerceAtLeast(
+            if (barCount <= 16) 8f else 2f
+        )
 
         for (i in 0 until animBars.size) {
             val fraction = animBars[i].coerceIn(0f, 1f)
             if (fraction < 0.005f) continue
 
             val barH = fraction * barMaxH
-            val cx = gap + i * (clampedBarW + gap) + clampedBarW / 2f   // center x of bar
-            val x1 = cx - clampedBarW / 4f
-            val x2 = cx + clampedBarW / 4f
-            val yTop = baseY - barH
+            val cx = gap + i * (barW + gap) + barW / 2f
+            val left = cx - barW / 2f
+            val right = cx + barW / 2f
+            val top = baseY - barH
+            val bottom = baseY
 
-            // Color intensity based on height (low = dim green, high = bright green/red)
-            if (fraction > 0.85f) {
-                barPaint.color = Color.parseColor("#FF5252") // red for very strong signals
-            } else if (fraction > 0.6f) {
-                barPaint.color = Color.parseColor("#76FF03") // lime for medium
+            val (lowColor, highColor) = when {
+                fraction > 0.85f -> Pair(colorHigh, Color.parseColor("#F472B6"))
+                fraction > 0.55f -> Pair(colorMid, colorHigh)
+                else              -> Pair(colorLow, colorMid)
+            }
+
+            val heightBucket = (barH / 4f).toInt()
+            val cacheKey = i * 100_000 + heightBucket
+            var shader = shaderCache[cacheKey]
+            if (shader == null) {
+                shader = LinearGradient(0f, top, 0f, bottom, highColor, lowColor, Shader.TileMode.CLAMP)
+                if (shaderCache.size < 512) shaderCache[cacheKey] = shader
+            }
+            barPaint.shader = shader
+
+            if (barCount <= 16 && barW > 6f) {
+                barRect.set(left, top, right, bottom)
+                val r = min(barW / 2f, 4f)
+                canvas.drawRoundRect(barRect, r, r, barPaint)
             } else {
-                barPaint.color = barColor // standard green
+                canvas.drawRect(left, top, right, bottom, barPaint)
             }
-
-            // Two vertical lines (firmware drawLine × 2)
-            canvas.drawLine(x1, baseY, x1, yTop, barPaint)
-            canvas.drawLine(x2, baseY, x2, yTop, barPaint)
         }
+        barPaint.shader = null
 
-        // ---- peak-hold dots (only for NRF24 / 16-bar mode) ----
         if (barCount <= 16) {
-            peakPaint.color = peakColor
-            // Slowly decay peaks
-            for (i in 0 until peakFrac.size) {
-                if (peakFrac[i] > animBars.getOrElse(i) { 0f }) {
-                    peakFrac[i] -= 0.003f // slow decay
-                }
-                if (peakFrac[i] < 0f) peakFrac[i] = 0f
-            }
-            for (i in 0 until peakFrac.size) {
-                if (peakFrac[i] < 0.01f) continue
+            for (i in peakFrac.indices) {
+                if (peakFrac[i] < 0.02f) continue
                 val peakH = peakFrac[i] * barMaxH
-                val cx = gap + i * (clampedBarW + gap) + clampedBarW / 2f
+                val cx = gap + i * (barW + gap) + barW / 2f
                 val yPeak = baseY - peakH
-                // Draw small rectangle as peak indicator (firmware uses 2 pixels)
-                val dotR = max(clampedBarW / 3f, 2f)
-                canvas.drawRect(cx - dotR, yPeak - 1f, cx + dotR, yPeak + 1f, peakPaint)
+                val dotW = max(barW / 2.5f, 3f)
+                canvas.drawRect(cx - dotW, yPeak - 2f, cx + dotW, yPeak + 1f, peakPaint)
             }
         }
 
-        // ---- baseline (firmware: drawLine across full width) ----
-        basePaint.color = baseColor
-        basePaint.strokeWidth = 1.5f
         canvas.drawLine(0f, baseY, w, baseY, basePaint)
 
-        // ---- waterfall (NRF24 mode only, below baseline) ----
         if (hasWaterfall) {
-            waterfallPaint.color = barColor
             val rows = waterfallHistory.size
             val rowH = waterfallH / WATERFALL_MAX
-
             for (r in 0 until rows) {
                 val row = waterfallHistory[r]
                 val wy = baseY + 2f + r * rowH
-                // Older rows are more transparent
-                val alpha = ((r + 1).toFloat() / rows * waterfallAlpha).toInt()
+                val alpha = ((r + 1).toFloat() / rows * 200).toInt()
+                waterfallPaint.color = colorLow
                 waterfallPaint.alpha = alpha
                 for (c in row.indices) {
                     if (row[c] < 0.05f) continue
-                    val cx = gap + c * (clampedBarW + gap) + clampedBarW / 2f
-                    val dotW = max(clampedBarW / 2f, 2f)
+                    val cx = gap + c * (barW + gap) + barW / 2f
+                    val dotW = max(barW / 1.8f, 2.5f)
                     canvas.drawRect(cx - dotW / 2f, wy, cx + dotW / 2f, wy + max(rowH - 0.5f, 1f), waterfallPaint)
                 }
             }
             waterfallPaint.alpha = 255
         }
 
-        // ---- bottom labels (channel / frequency numbers) ----
-        textPaint.textSize = if (barCount <= 16) 18f else 12f
-        textPaint.color = labelColor
-        val step = if (barCount <= 16) 1 else if (barCount <= 32) 4 else 8
+        textPaint.textSize = if (barCount <= 16) 16f else 11f
+        textPaint.color = colorLabel
+        val step = if (barCount <= 16) 2 else if (barCount <= 32) 4 else 8
         for (i in 0 until barCount step step) {
-            val cx = gap + i * (clampedBarW + gap) + clampedBarW / 2f
+            val cx = gap + i * (barW + gap) + barW / 2f
             canvas.drawText("$i", cx, h - 4f, textPaint)
         }
     }
