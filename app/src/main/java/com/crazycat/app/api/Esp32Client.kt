@@ -53,31 +53,37 @@ object Esp32Client {
         }
         }
 
-    private suspend fun sendGet(endpoint: String): String? = withContext(Dispatchers.IO) {
+        private suspend fun sendGet(endpoint: String): String? = withContext(Dispatchers.IO) {
         try {
             val request = Request.Builder().url("$BASE_URL$endpoint").build()
+            var httpCode = 200
             val body = client.newCall(request).execute().use { response ->
+                httpCode = response.code
                 if (response.isSuccessful) response.body?.string() else null
             }
-            if (body != null) clearError() else recordError(java.io.IOException("HTTP non-2xx"))
+            if (body != null) clearError() else recordError(java.io.IOException("HTTP $httpCode"))
             body
         } catch (e: Exception) {
             recordError(e)
             null
         }
-    }
+        }
 
-    suspend fun checkConnection(): Boolean = withContext(Dispatchers.IO) {
+        suspend fun checkConnection(): Boolean = withContext(Dispatchers.IO) {
         try {
             val request = Request.Builder().url("$BASE_URL/api/status").build()
-            val ok = client.newCall(request).execute().use { it.isSuccessful }
-            if (ok) clearError() else recordError(java.io.IOException("HTTP ${it.code}"))
+            var httpCode = 200
+            val ok = client.newCall(request).execute().use { response ->
+                httpCode = response.code
+                response.isSuccessful
+            }
+            if (ok) clearError() else recordError(java.io.IOException("HTTP $httpCode"))
             ok
         } catch (e: Exception) {
             recordError(e)
             false
         }
-    }
+        }
 
     suspend fun checkStatusJson(): String? = sendGet("/api/status")
 
@@ -147,7 +153,7 @@ object Esp32Client {
     suspend fun bfCarStop(): Boolean = sendPost("/api/attack/bf/car/stop")
     suspend fun bfStatus(): String? = sendGet("/api/attack/bf/status")
 
-    suspend fun cc1101TransmitRaw(frequency: Long, timings: List<Int>): Boolean = withContext(Dispatchers.IO) {
+        suspend fun cc1101TransmitRaw(frequency: Long, timings: List<Int>): Boolean = withContext(Dispatchers.IO) {
         try {
             val json = JSONObject()
             json.put("frequency", frequency)
@@ -157,12 +163,15 @@ object Esp32Client {
                 .url("$BASE_URL/api/cc1101/transmit_raw")
                 .post(body)
                 .build()
-            val ok = client.newCall(request).execute().use { it.isSuccessful }
-            if (ok) clearError() else recordError(java.io.IOException("HTTP ${it.code}"))
+            var httpCode = 200
+            val ok = client.newCall(request).execute().use { response ->
+                httpCode = response.code
+                response.isSuccessful
+            }
+            if (ok) clearError() else recordError(java.io.IOException("HTTP $httpCode"))
             ok
         } catch (e: Exception) {
             recordError(e)
             false
         }
-    }
-}
+        }
