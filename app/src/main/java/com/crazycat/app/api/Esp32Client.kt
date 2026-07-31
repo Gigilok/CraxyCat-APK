@@ -130,7 +130,9 @@ object Esp32Client {
     suspend fun nrf24ScannerStart(): Boolean = sendPost("/api/nrf24/scanner/start")
     suspend fun nrf24ScannerStop(): Boolean = sendPost("/api/nrf24/scanner/stop")
     suspend fun nrf24ScanData(): String? = sendGet("/api/nrf24/scan")
-
+    // NOVO: scanner estilo Flipper (64 barras + peaks + waterfall)
+    suspend fun nrf24SpecData(): String? = sendGet("/api/nrf24/spec")
+    
     // === BLUETOOTH ===
     suspend fun btScan(): Boolean = sendPost("/api/attack/bt/scan")
     suspend fun btDevices(): String? = sendGet("/api/attack/bt/devices")
@@ -177,7 +179,9 @@ object Esp32Client {
     suspend fun bfCarStart(brand: Int): Boolean = sendPost("/api/attack/bf/car/start", mapOf("brand" to brand.toString()))
     suspend fun bfCarStop(): Boolean = sendPost("/api/attack/bf/car/stop")
     suspend fun bfStatus(): String? = sendGet("/api/attack/bf/status")
-
+    // NOVO: lista de marcas de carro para BF Car
+    suspend fun bfBrands(): String? = sendGet("/api/attack/bf/brands")
+    
     // === CC1101 TRANSMIT RAW (JSON body for Keeloq) ===
     suspend fun cc1101TransmitRaw(frequency: Long, timings: List<Int>): Boolean = withContext(Dispatchers.IO) {
         try {
