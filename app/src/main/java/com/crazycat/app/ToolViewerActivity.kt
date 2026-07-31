@@ -169,10 +169,12 @@ class ToolViewerActivity : AppCompatActivity() {
         startTimer()
 
         when (tool) {
-            "nrf24_scanner" -> {
+          "nrf24_scanner" -> {
                 lifecycleScope.launch {
-                    barChart.setBars(List(16) { 0 }, 60)
-                    tvInfoText.text = "SCAN 2.4GHz"
+                    // Inicializa chart com 64 barras (estilo Flipper Zero)
+                    barChart.setBars(List(64) { 0 }, 40)
+                    barChart.setExternalPeaks(List(64) { 0 }, 40)
+                    tvInfoText.text = "SCAN 2.4GHz · 64ch"
                     tvInfoText2.text = "F:0"
                     val ok = Esp32Client.nrf24ScannerStart()
                     if (!ok) {
@@ -181,7 +183,7 @@ class ToolViewerActivity : AppCompatActivity() {
                     }
                     pollNRF24Scanner()
                 }
-            }
+            }       
             "nrf24_jammer" -> {
                 lifecycleScope.launch {
                     tvStatusTitle.text = "NRF24 JAMMER"
@@ -266,7 +268,12 @@ class ToolViewerActivity : AppCompatActivity() {
                     startPulse(Color.parseColor("#3B82F6"))
                     val ok = Esp32Client.btScan()
                     if (!ok) {
-                        tvStatusDetail.text = "Erro ao iniciar scan BLE"
+                        // FIX: trata erro de init BLE — antes o APK seguia para pollBTDevices mesmo assim
+                        tvStatusTitle.text = "ERRO BLE"
+                        tvStatusDetail.text = "Falha: ${Esp32Client.lastError ?: "ESP32 não respondeu"}"
+                        setStatusRunning(false)
+                        pulseJob?.cancel()
+                        return@launch
                     }
                     delay(3000)
                     pollBTDevices()
@@ -417,16 +424,35 @@ class ToolViewerActivity : AppCompatActivity() {
     private suspend fun pollNRF24Scanner() {
         pollJob = lifecycleScope.launch {
             var errorCount = 0
+            var triedFallback = false
             while (true) {
                 if (!isRunning) break
                 try {
-                    val json = Esp32Client.nrf24ScanData()
+                    // NOVO: usa /api/nrf24/spec (64 barras estilo Flipper)
+                    val json = Esp32Client.nrf24SpecData()
                     if (json == null) {
+                        // Fallback para endpoint antigo se firmware não tiver /spec
+                        if (!triedFallback) {
+                            triedFallback = true
+                            val oldJson = Esp32Client.nrf24ScanData()
+                            if (oldJson != null) {
+                                val obj = JSONObject(oldJson)
+                                val barsArr = obj.getJSONArray("bars")
+                                val values = mutableListOf<Int>()
+                                for (i in 0 until barsArr.length()) {
+                                    val rssi = jsonArrEntryToInt(barsArr, i, -100)
+                                    values.add((rssi + 100).coerceIn(0, 60))
+                                }
+                                runOnUiThread {
+                                    barChart.setBars(values, 60)
+                                    tvInfoText.text = "SCAN 2.4GHz (modo legado 16ch)"
+                                    tvInfoText2.text = "Atualize o firmware p/ 64ch"
+                                }
+                            }
+                        }
                         errorCount++
                         if (errorCount > 5) {
-                            runOnUiThread {
-                                tvInfoText.text = "Sem resposta do ESP32"
-                            }
+                            runOnUiThread { tvInfoText.text = "Sem resposta do ESP32" }
                             delay(2000)
                             continue
                         }
@@ -445,23 +471,31 @@ class ToolViewerActivity : AppCompatActivity() {
                     }
 
                     val barsArr = obj.getJSONArray("bars")
-                    val packets = obj.optLong("packets", 0)
+                    val peaksArr = obj.optJSONArray("peaks")
+                    val frames = obj.optLong("frames", 0)
+                    val maxH = obj.optInt("max_height", 40)
 
                     val values = mutableListOf<Int>()
                     for (i in 0 until barsArr.length()) {
-                        val rssi = jsonArrEntryToInt(barsArr, i, default = -100)
-                        val displayVal = rssi + 100
-                        values.add(displayVal.coerceIn(0, 60))
+                        values.add(jsonArrEntryToInt(barsArr, i, 0).coerceIn(0, maxH))
+                    }
+
+                    val peaks = mutableListOf<Int>()
+                    if (peaksArr != null) {
+                        for (i in 0 until peaksArr.length()) {
+                            peaks.add(jsonArrEntryToInt(peaksArr, i, 0).coerceIn(0, maxH))
+                        }
                     }
 
                     runOnUiThread {
-                        barChart.setBars(values, 60)
-                        tvInfoText.text = "SCAN 2.4GHz"
-                        tvInfoText2.text = "F:$packets"
+                        barChart.setBars(values, maxH)
+                        if (peaks.isNotEmpty()) barChart.setExternalPeaks(peaks, maxH)
+                        tvInfoText.text = "SCAN 2.4GHz · 64ch"
+                        tvInfoText2.text = "F:$frames"
                     }
                 } catch (_: Exception) {
                 }
-                delay(400)
+                delay(200)
             }
         }
     }
@@ -602,8 +636,13 @@ class ToolViewerActivity : AppCompatActivity() {
                     val obj = JSONObject(json)
                     val running = obj.optBoolean("running", false)
                     val current = obj.optInt("current_index", 0)
-                    val total = obj.optInt("gate_total", 1).coerceAtLeast(1)
-                    val percent = (current * 100 / total).coerceIn(0, 100)
+                    // FIX: usa campo 'total' dinâmico (gate_total era fixo em 16.7M mesmo para BF Car)
+                    val total = if (obj.has("total")) obj.optInt("total", 1)
+                                else obj.optInt("gate_total", 1)
+                    val totalSafe = total.coerceAtLeast(1)
+                    val percent = (current * 100 / totalSafe).coerceIn(0, 100)
+                    val mode = obj.optString("mode", "")
+                    val brandName = obj.optString("brand_name", "")
 
                     val finished = !running
                     runOnUiThread {
@@ -612,9 +651,15 @@ class ToolViewerActivity : AppCompatActivity() {
                             tvProgressPercent.text = "100%"
                             progressBar.progress = 100
                         } else {
-                            tvProgressText.text = "$current / $total"
+                            tvProgressText.text = "$current / $totalSafe"
                             tvProgressPercent.text = "$percent%"
                             progressBar.progress = percent
+                        }
+                        // Atualiza label com modo + marca se for BF Car
+                        if (mode == "car" && brandName.isNotEmpty()) {
+                            tvProgressLabel.text = "BF CARRO · $brandName"
+                        } else if (mode == "gate") {
+                            tvProgressLabel.text = "BRUTE FORCE PORTÃO"
                         }
                     }
                     if (finished) {
@@ -626,7 +671,6 @@ class ToolViewerActivity : AppCompatActivity() {
             }
         }
     }
-
     private suspend fun pollBTDevices() {
         pollJob = lifecycleScope.launch {
             var attempts = 0
