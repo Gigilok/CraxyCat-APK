@@ -333,26 +333,26 @@ class ToolViewerActivity : AppCompatActivity() {
         isRunning = false
 
         val tool = intent.getStringExtra(EXTRA_TOOL) ?: ""
-                Thread {
+        Thread {
             try {
                 runBlocking {
                     when (tool) {
-                        "nrf24_scanner" -> Esp32Client.nrf24ScannerStop()
-                        "nrf24_jammer"  -> Esp32Client.nrf24JammerStop()
-                        "cc1101_rolljam"-> Esp32Client.cc1101RollJamStop()
-                        "cc1101_jammer" -> Esp32Client.cc1101JammerStop()
-                        "cc1101_analyzer" -> Esp32Client.cc1101AnalyzerStop()
-                        "bt_jammer"     -> Esp32Client.btJammerStop()
-                        "deauth"        -> Esp32Client.deauthStop()
-                        "eviltwin"      -> Esp32Client.eviltwinStop()
-                        "drone_jammer"  -> Esp32Client.droneJammerStop()
-                        "camera_freeze" -> Esp32Client.cameraFreezeStop()
-                        "bf_gate"       -> Esp32Client.bfGateStop()
-                        "bf_car"        -> Esp32Client.bfCarStop()
+                        "nrf24_scanner"  -> Esp32Client.nrf24ScannerStop()
+                        "nrf24_jammer"   -> Esp32Client.nrf24JammerStop()
+                        "cc1101_rolljam" -> Esp32Client.cc1101RollJamStop()
+                        "cc1101_jammer"  -> Esp32Client.cc1101JammerStop()
+                        "cc1101_analyzer"-> Esp32Client.cc1101AnalyzerStop()
+                        "bt_jammer"      -> Esp32Client.btJammerStop()
+                        "deauth"         -> Esp32Client.deauthStop()
+                        "eviltwin"       -> Esp32Client.eviltwinStop()
+                        "drone_jammer"   -> Esp32Client.droneJammerStop()
+                        "camera_freeze"  -> Esp32Client.cameraFreezeStop()
+                        "bf_gate"        -> Esp32Client.bfGateStop()
+                        "bf_car"         -> Esp32Client.bfCarStop()
                         else -> {}
                     }
                 }
-            } catch (_: Exception) { /* swallow — we're leaving anyway */ }
+            } catch (_: Exception) { }
             runOnUiThread {
                 try { barChart.reset() } catch (_: Exception) {}
                 finish()
@@ -731,7 +731,6 @@ class ToolViewerActivity : AppCompatActivity() {
         return item
     }
 
-        /** Quick dp → px helper */
     private fun Int.dp(): Int = (this * this@ToolViewerActivity.resources.displayMetrics.density).toInt()
 
     private fun clearList() {
