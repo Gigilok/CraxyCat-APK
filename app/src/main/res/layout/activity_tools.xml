@@ -1,68 +1,89 @@
 <?xml version="1.0" encoding="utf-8"?>
-<ScrollView xmlns:android="http://schemas.android.com/apk/res/android"
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
-    android:background="#0A0A0A">
+    android:background="@drawable/bg_main"
+    android:orientation="vertical"
+    android:fitsSystemWindows="true">
 
-    <RelativeLayout
+    <LinearLayout
         android:layout_width="match_parent"
-        android:layout_height="wrap_content"
-        android:padding="16dp">
+        android:layout_height="60dp"
+        android:gravity="center_vertical"
+        android:orientation="horizontal"
+        android:paddingStart="14dp"
+        android:paddingEnd="18dp"
+        android:background="#0F131A">
 
-        <!-- Header -->
+        <FrameLayout
+            android:id="@+id/btnToolsBack"
+            android:layout_width="40dp"
+            android:layout_height="40dp"
+            android:foreground="?android:attr/selectableItemBackground"
+            android:clickable="true"
+            android:focusable="true">
+
+            <ImageView
+                android:layout_width="24dp"
+                android:layout_height="24dp"
+                android:layout_gravity="center"
+                android:src="@drawable/ic_back"
+                android:contentDescription="back"/>
+        </FrameLayout>
+
+        <TextView
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_weight="1"
+            android:layout_marginStart="10dp"
+            android:text="Ferramentas"
+            android:textColor="@color/text_primary"
+            android:textSize="18sp"
+            android:textStyle="bold"
+            android:letterSpacing="0.02"/>
+
+        <TextView
+            android:id="@+id/tvToolsCategory"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="SUB-GHz"
+            android:textColor="@color/accent_cyan"
+            android:textSize="12sp"
+            android:textStyle="bold"
+            android:background="@drawable/status_pill_bg"
+            android:paddingStart="12dp"
+            android:paddingEnd="12dp"
+            android:paddingTop="5dp"
+            android:paddingBottom="5dp"
+            android:letterSpacing="0.06"/>
+    </LinearLayout>
+
+    <View
+        android:layout_width="match_parent"
+        android:layout_height="1dp"
+        android:background="@color/border_subtle"/>
+
+    <ScrollView
+        android:layout_width="match_parent"
+        android:layout_height="0dp"
+        android:layout_weight="1"
+        android:scrollbars="none">
+
         <LinearLayout
-            android:id="@+id/toolsHeader"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:layout_alignParentTop="true"
-            android:gravity="center_vertical"
-            android:orientation="horizontal"
-            android:layout_marginBottom="20dp">
+            android:orientation="vertical"
+            android:padding="16dp">
 
-            <TextView
-                android:layout_width="0dp"
-                android:layout_height="wrap_content"
-                android:layout_weight="1"
-                android:text="TOOLKIT"
-                android:textColor="#FFFFFF"
-                android:textSize="20sp"
-                android:textStyle="bold"
-                android:letterSpacing="0.15"/>
-
-            <TextView
-                android:id="@+id/tvToolsCategory"
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:text="SUB-GHz"
-                android:textColor="#00FF41"
-                android:textSize="12sp"/>
-        </LinearLayout>
-
-        <!-- Lista de ferramentas -->
-        <LinearLayout
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:layout_below="@id/toolsHeader"
-            android:orientation="vertical">
-
-            <!-- Tool 1 -->
             <LinearLayout
                 android:id="@+id/btnTool1"
-                android:layout_width="match_parent"
-                android:layout_height="60dp"
-                android:background="#162447"
-                android:gravity="center_vertical"
-                android:orientation="horizontal"
-                android:paddingStart="20dp"
-                android:paddingEnd="20dp"
-                android:layout_marginBottom="8dp"
-                android:clickable="true"
-                android:focusable="true">
+                style="@style/ToolListItem"
+                android:visibility="gone">
 
                 <View
-                    android:layout_width="4dp"
-                    android:layout_height="28dp"
-                    android:background="#00FF41"/>
+                    android:layout_width="3dp"
+                    android:layout_height="36dp"
+                    android:background="@color/accent_cyan"/>
 
                 <TextView
                     android:id="@+id/tvTool1"
@@ -71,36 +92,26 @@
                     android:layout_weight="1"
                     android:layout_marginStart="16dp"
                     android:text="Ferramenta 1"
-                    android:textColor="#FFFFFF"
+                    android:textColor="@color/text_primary"
                     android:textSize="15sp"
-                    android:textStyle="bold"/>
+                    android:textStyle="bold"
+                    android:letterSpacing="0.02"/>
 
-                <TextView
-                    android:layout_width="wrap_content"
-                    android:layout_height="wrap_content"
-                    android:text="▶"
-                    android:textColor="#333333"
-                    android:textSize="14sp"/>
+                <ImageView
+                    android:layout_width="20dp"
+                    android:layout_height="20dp"
+                    android:src="@drawable/ic_chevron"/>
             </LinearLayout>
 
-            <!-- Tool 2 -->
             <LinearLayout
                 android:id="@+id/btnTool2"
-                android:layout_width="match_parent"
-                android:layout_height="60dp"
-                android:background="#1A1A2E"
-                android:gravity="center_vertical"
-                android:orientation="horizontal"
-                android:paddingStart="20dp"
-                android:paddingEnd="20dp"
-                android:layout_marginBottom="8dp"
-                android:clickable="true"
-                android:focusable="true">
+                style="@style/ToolListItem"
+                android:visibility="gone">
 
                 <View
-                    android:layout_width="4dp"
-                    android:layout_height="28dp"
-                    android:background="#42A5F5"/>
+                    android:layout_width="3dp"
+                    android:layout_height="36dp"
+                    android:background="@color/accent_amber"/>
 
                 <TextView
                     android:id="@+id/tvTool2"
@@ -109,37 +120,26 @@
                     android:layout_weight="1"
                     android:layout_marginStart="16dp"
                     android:text="Ferramenta 2"
-                    android:textColor="#FFFFFF"
+                    android:textColor="@color/text_primary"
                     android:textSize="15sp"
-                    android:textStyle="bold"/>
+                    android:textStyle="bold"
+                    android:letterSpacing="0.02"/>
 
-                <TextView
-                    android:layout_width="wrap_content"
-                    android:layout_height="wrap_content"
-                    android:text="▶"
-                    android:textColor="#333333"
-                    android:textSize="14sp"/>
+                <ImageView
+                    android:layout_width="20dp"
+                    android:layout_height="20dp"
+                    android:src="@drawable/ic_chevron"/>
             </LinearLayout>
 
-            <!-- Tool 3 -->
             <LinearLayout
                 android:id="@+id/btnTool3"
-                android:layout_width="match_parent"
-                android:layout_height="60dp"
-                android:background="#2E1A1A"
-                android:gravity="center_vertical"
-                android:orientation="horizontal"
-                android:paddingStart="20dp"
-                android:paddingEnd="20dp"
-                android:layout_marginBottom="8dp"
-                android:clickable="true"
-                android:focusable="true"
+                style="@style/ToolListItem"
                 android:visibility="gone">
 
                 <View
-                    android:layout_width="4dp"
-                    android:layout_height="28dp"
-                    android:background="#FF5252"/>
+                    android:layout_width="3dp"
+                    android:layout_height="36dp"
+                    android:background="@color/accent_blue"/>
 
                 <TextView
                     android:id="@+id/tvTool3"
@@ -148,37 +148,26 @@
                     android:layout_weight="1"
                     android:layout_marginStart="16dp"
                     android:text="Ferramenta 3"
-                    android:textColor="#FFFFFF"
+                    android:textColor="@color/text_primary"
                     android:textSize="15sp"
-                    android:textStyle="bold"/>
+                    android:textStyle="bold"
+                    android:letterSpacing="0.02"/>
 
-                <TextView
-                    android:layout_width="wrap_content"
-                    android:layout_height="wrap_content"
-                    android:text="▶"
-                    android:textColor="#333333"
-                    android:textSize="14sp"/>
+                <ImageView
+                    android:layout_width="20dp"
+                    android:layout_height="20dp"
+                    android:src="@drawable/ic_chevron"/>
             </LinearLayout>
 
-            <!-- Tool 4 -->
             <LinearLayout
                 android:id="@+id/btnTool4"
-                android:layout_width="match_parent"
-                android:layout_height="60dp"
-                android:background="#1F1A2E"
-                android:gravity="center_vertical"
-                android:orientation="horizontal"
-                android:paddingStart="20dp"
-                android:paddingEnd="20dp"
-                android:layout_marginBottom="8dp"
-                android:clickable="true"
-                android:focusable="true"
+                style="@style/ToolListItem"
                 android:visibility="gone">
 
                 <View
-                    android:layout_width="4dp"
-                    android:layout_height="28dp"
-                    android:background="#FF9100"/>
+                    android:layout_width="3dp"
+                    android:layout_height="36dp"
+                    android:background="@color/accent_red"/>
 
                 <TextView
                     android:id="@+id/tvTool4"
@@ -187,37 +176,26 @@
                     android:layout_weight="1"
                     android:layout_marginStart="16dp"
                     android:text="Ferramenta 4"
-                    android:textColor="#FFFFFF"
+                    android:textColor="@color/text_primary"
                     android:textSize="15sp"
-                    android:textStyle="bold"/>
+                    android:textStyle="bold"
+                    android:letterSpacing="0.02"/>
 
-                <TextView
-                    android:layout_width="wrap_content"
-                    android:layout_height="wrap_content"
-                    android:text="▶"
-                    android:textColor="#333333"
-                    android:textSize="14sp"/>
+                <ImageView
+                    android:layout_width="20dp"
+                    android:layout_height="20dp"
+                    android:src="@drawable/ic_chevron"/>
             </LinearLayout>
 
-            <!-- Tool 5 -->
             <LinearLayout
                 android:id="@+id/btnTool5"
-                android:layout_width="match_parent"
-                android:layout_height="60dp"
-                android:background="#1A2E1A"
-                android:gravity="center_vertical"
-                android:orientation="horizontal"
-                android:paddingStart="20dp"
-                android:paddingEnd="20dp"
-                android:layout_marginBottom="8dp"
-                android:clickable="true"
-                android:focusable="true"
+                style="@style/ToolListItem"
                 android:visibility="gone">
 
                 <View
-                    android:layout_width="4dp"
-                    android:layout_height="28dp"
-                    android:background="#76FF03"/>
+                    android:layout_width="3dp"
+                    android:layout_height="36dp"
+                    android:background="@color/accent_green"/>
 
                 <TextView
                     android:id="@+id/tvTool5"
@@ -226,37 +204,26 @@
                     android:layout_weight="1"
                     android:layout_marginStart="16dp"
                     android:text="Ferramenta 5"
-                    android:textColor="#FFFFFF"
+                    android:textColor="@color/text_primary"
                     android:textSize="15sp"
-                    android:textStyle="bold"/>
+                    android:textStyle="bold"
+                    android:letterSpacing="0.02"/>
 
-                <TextView
-                    android:layout_width="wrap_content"
-                    android:layout_height="wrap_content"
-                    android:text="▶"
-                    android:textColor="#333333"
-                    android:textSize="14sp"/>
+                <ImageView
+                    android:layout_width="20dp"
+                    android:layout_height="20dp"
+                    android:src="@drawable/ic_chevron"/>
             </LinearLayout>
 
-            <!-- Tool 6 -->
             <LinearLayout
                 android:id="@+id/btnTool6"
-                android:layout_width="match_parent"
-                android:layout_height="60dp"
-                android:background="#2E2E1A"
-                android:gravity="center_vertical"
-                android:orientation="horizontal"
-                android:paddingStart="20dp"
-                android:paddingEnd="20dp"
-                android:layout_marginBottom="8dp"
-                android:clickable="true"
-                android:focusable="true"
+                style="@style/ToolListItem"
                 android:visibility="gone">
 
                 <View
-                    android:layout_width="4dp"
-                    android:layout_height="28dp"
-                    android:background="#FFD600"/>
+                    android:layout_width="3dp"
+                    android:layout_height="36dp"
+                    android:background="@color/accent_purple"/>
 
                 <TextView
                     android:id="@+id/tvTool6"
@@ -265,37 +232,26 @@
                     android:layout_weight="1"
                     android:layout_marginStart="16dp"
                     android:text="Ferramenta 6"
-                    android:textColor="#FFFFFF"
+                    android:textColor="@color/text_primary"
                     android:textSize="15sp"
-                    android:textStyle="bold"/>
+                    android:textStyle="bold"
+                    android:letterSpacing="0.02"/>
 
-                <TextView
-                    android:layout_width="wrap_content"
-                    android:layout_height="wrap_content"
-                    android:text="▶"
-                    android:textColor="#333333"
-                    android:textSize="14sp"/>
+                <ImageView
+                    android:layout_width="20dp"
+                    android:layout_height="20dp"
+                    android:src="@drawable/ic_chevron"/>
             </LinearLayout>
 
-            <!-- Tool 7 -->
             <LinearLayout
                 android:id="@+id/btnTool7"
-                android:layout_width="match_parent"
-                android:layout_height="60dp"
-                android:background="#1A2E2E"
-                android:gravity="center_vertical"
-                android:orientation="horizontal"
-                android:paddingStart="20dp"
-                android:paddingEnd="20dp"
-                android:layout_marginBottom="8dp"
-                android:clickable="true"
-                android:focusable="true"
+                style="@style/ToolListItem"
                 android:visibility="gone">
 
                 <View
-                    android:layout_width="4dp"
-                    android:layout_height="28dp"
-                    android:background="#00BCD4"/>
+                    android:layout_width="3dp"
+                    android:layout_height="36dp"
+                    android:background="@color/accent_cyan"/>
 
                 <TextView
                     android:id="@+id/tvTool7"
@@ -304,37 +260,26 @@
                     android:layout_weight="1"
                     android:layout_marginStart="16dp"
                     android:text="Ferramenta 7"
-                    android:textColor="#FFFFFF"
+                    android:textColor="@color/text_primary"
                     android:textSize="15sp"
-                    android:textStyle="bold"/>
+                    android:textStyle="bold"
+                    android:letterSpacing="0.02"/>
 
-                <TextView
-                    android:layout_width="wrap_content"
-                    android:layout_height="wrap_content"
-                    android:text="▶"
-                    android:textColor="#333333"
-                    android:textSize="14sp"/>
+                <ImageView
+                    android:layout_width="20dp"
+                    android:layout_height="20dp"
+                    android:src="@drawable/ic_chevron"/>
             </LinearLayout>
 
-            <!-- Tool 8 -->
             <LinearLayout
                 android:id="@+id/btnTool8"
-                android:layout_width="match_parent"
-                android:layout_height="60dp"
-                android:background="#2E1A2E"
-                android:gravity="center_vertical"
-                android:orientation="horizontal"
-                android:paddingStart="20dp"
-                android:paddingEnd="20dp"
-                android:layout_marginBottom="8dp"
-                android:clickable="true"
-                android:focusable="true"
+                style="@style/ToolListItem"
                 android:visibility="gone">
 
                 <View
-                    android:layout_width="4dp"
-                    android:layout_height="28dp"
-                    android:background="#E040FB"/>
+                    android:layout_width="3dp"
+                    android:layout_height="36dp"
+                    android:background="@color/accent_amber"/>
 
                 <TextView
                     android:id="@+id/tvTool8"
@@ -343,18 +288,18 @@
                     android:layout_weight="1"
                     android:layout_marginStart="16dp"
                     android:text="Ferramenta 8"
-                    android:textColor="#FFFFFF"
+                    android:textColor="@color/text_primary"
                     android:textSize="15sp"
-                    android:textStyle="bold"/>
+                    android:textStyle="bold"
+                    android:letterSpacing="0.02"/>
 
-                <TextView
-                    android:layout_width="wrap_content"
-                    android:layout_height="wrap_content"
-                    android:text="▶"
-                    android:textColor="#333333"
-                    android:textSize="14sp"/>
+                <ImageView
+                    android:layout_width="20dp"
+                    android:layout_height="20dp"
+                    android:src="@drawable/ic_chevron"/>
             </LinearLayout>
 
         </LinearLayout>
-    </RelativeLayout>
-</ScrollView>
+    </ScrollView>
+
+</LinearLayout>
