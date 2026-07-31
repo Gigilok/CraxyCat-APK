@@ -32,7 +32,7 @@ object Esp32Client {
 
     private fun clearError() { lastError = null }
 
-    private suspend fun sendPost(endpoint: String, params: Map<String, String> = emptyMap()): Boolean = withContext(Dispatchers.IO) {
+        private suspend fun sendPost(endpoint: String, params: Map<String, String> = emptyMap()): Boolean = withContext(Dispatchers.IO) {
         try {
             val builder = FormBody.Builder()
             params.forEach { (k, v) -> builder.add(k, v) }
@@ -40,14 +40,18 @@ object Esp32Client {
                 .url("$BASE_URL$endpoint")
                 .post(builder.build())
                 .build()
-            val ok = client.newCall(request).execute().use { it.isSuccessful }
-            if (ok) clearError() else recordError(java.io.IOException("HTTP ${it.code}"))
+            var httpCode = 200
+            val ok = client.newCall(request).execute().use { response ->
+                httpCode = response.code
+                response.isSuccessful
+            }
+            if (ok) clearError() else recordError(java.io.IOException("HTTP $httpCode"))
             ok
         } catch (e: Exception) {
             recordError(e)
             false
         }
-    }
+        }
 
     private suspend fun sendGet(endpoint: String): String? = withContext(Dispatchers.IO) {
         try {
