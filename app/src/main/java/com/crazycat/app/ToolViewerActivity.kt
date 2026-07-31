@@ -333,7 +333,7 @@ class ToolViewerActivity : AppCompatActivity() {
         isRunning = false
 
         val tool = intent.getStringExtra(EXTRA_TOOL) ?: ""
-        Thread {
+                Thread {
             try {
                 runBlocking {
                     when (tool) {
@@ -349,9 +349,10 @@ class ToolViewerActivity : AppCompatActivity() {
                         "camera_freeze" -> Esp32Client.cameraFreezeStop()
                         "bf_gate"       -> Esp32Client.bfGateStop()
                         "bf_car"        -> Esp32Client.bfCarStop()
+                        else -> {}
                     }
                 }
-            } catch (_: Exception) { }
+            } catch (_: Exception) { /* swallow — we're leaving anyway */ }
             runOnUiThread {
                 try { barChart.reset() } catch (_: Exception) {}
                 finish()
@@ -730,7 +731,8 @@ class ToolViewerActivity : AppCompatActivity() {
         return item
     }
 
-    private fun Int.dp(): Int = (this * resources.displayMetrics.density).toInt()
+        /** Quick dp → px helper */
+    private fun Int.dp(): Int = (this * this@ToolViewerActivity.resources.displayMetrics.density).toInt()
 
     private fun clearList() {
         runOnUiThread { listContent.removeAllViews() }
