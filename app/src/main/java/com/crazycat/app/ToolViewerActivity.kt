@@ -464,7 +464,7 @@ class ToolViewerActivity : AppCompatActivity() {
                     // Check for error response from firmware
                     if (obj.has("status") && obj.optString("status") == "error") {
                         runOnUiThread {
-                            tvInfoText.text = "Erro: ${obj.optString("message", "?"}"
+                            tvInfoText.text = "Erro: ${obj.optString("message", "?")}"
                         }
                         delay(2000)
                         continue
@@ -526,7 +526,7 @@ class ToolViewerActivity : AppCompatActivity() {
 
                     if (obj.has("status") && obj.optString("status") == "error") {
                         runOnUiThread {
-                            tvInfoText.text = "Erro: ${obj.optString("message", "?"}"
+                            tvInfoText.text = "Erro: ${obj.optString("message", "?")}"
                         }
                         delay(3000)
                         continue
@@ -625,7 +625,9 @@ class ToolViewerActivity : AppCompatActivity() {
             while (true) {
                 if (!isRunning) break
                 try {
-                    val json = Esp32Client.bfStatus() ?: run { delay(500); continue }
+                    var json: String? = null
+                    try { json = Esp32Client.bfStatus() } catch (_: Exception) {}
+                    if (json == null) { delay(500); continue }
                     val obj = JSONObject(json)
                     val running = obj.optBoolean("running", false)
                     val current = obj.optInt("current_index", 0)
