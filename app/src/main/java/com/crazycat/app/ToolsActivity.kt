@@ -103,7 +103,7 @@ class ToolsActivity : AppCompatActivity() {
             }
             "BLUETOOTH" -> {
                 tool(btns[0], tvs[0], "BLE Scan",    "bt_scan",   "status")
-                tool(btns[1], tvs[1], "BLE Jammer",  "bt_jammer", "pick_device")
+                tool(btns[1], tvs[1], "BLE Jammer",  "bt_jammer", "status")
                 stopTool(btns[2], tvs[2], "Parar BT",
                     { Esp32Client.btJammerStop() }
                 )
