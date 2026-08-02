@@ -142,6 +142,8 @@ object Esp32Client {
 
     // === SUB-GHz (CC1101) ===
     suspend fun cc1101Copy(): Boolean = sendPost("/api/cc1101/copy")
+    suspend fun cc1101CopyStop(): Boolean = sendPost("/api/cc1101/copy/stop")
+    suspend fun cc1101CopyStopFast(): Boolean = stopPost("/api/cc1101/copy/stop")
     suspend fun cc1101Replay(id: Int): Boolean = sendPost("/api/cc1101/replay", mapOf("id" to id.toString()))
     suspend fun cc1101GetSignals(): String? = sendGet("/api/cc1101/signals")
     suspend fun cc1101GetRaw(id: Int): String? = sendGet("/api/cc1101/raw?id=$id")
@@ -173,6 +175,8 @@ object Esp32Client {
     
     // === BLUETOOTH ===
     suspend fun btScan(): Boolean = sendPost("/api/attack/bt/scan")
+    suspend fun btScanStop(): Boolean = sendPost("/api/attack/bt/scan/stop")
+    suspend fun btScanStopFast(): Boolean = stopPost("/api/attack/bt/scan/stop")
     suspend fun btDevices(): String? = sendGet("/api/attack/bt/devices")
     suspend fun btJammerStart(id: Int): Boolean = sendPost("/api/attack/bt/jammer/start", mapOf("id" to id.toString()))
     suspend fun btJammerStop(): Boolean = sendPost("/api/attack/bt/jammer/stop")
