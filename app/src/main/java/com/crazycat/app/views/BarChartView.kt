@@ -34,7 +34,7 @@ class BarChartView @JvmOverloads constructor(
     private val targetBars = mutableListOf<Float>()
     private val animBars   = mutableListOf<Float>()
     private val peakFrac   = mutableListOf<Float>()  // internal auto-peak (decays)
-    private val externalPeaks = mutableListOf<Int>() // external peak values from firmware
+    private val externalPeaks = mutableListOf<Float>() // external peak values (normalized 0-1) from firmware
     private var maxVal: Int = 100
 
     private val WATERFALL_MAX = 24
