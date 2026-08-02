@@ -348,9 +348,11 @@ class ToolViewerActivity : AppCompatActivity() {
                     when (tool) {
                         "nrf24_scanner"  -> Esp32Client.nrf24ScannerStopFast()
                         "nrf24_jammer"   -> Esp32Client.nrf24JammerStopFast()
+                        "cc1101_copy"    -> Esp32Client.cc1101CopyStopFast()
                         "cc1101_rolljam" -> Esp32Client.cc1101RollJamStopFast()
                         "cc1101_jammer"  -> Esp32Client.cc1101JammerStopFast()
                         "cc1101_analyzer"-> Esp32Client.cc1101AnalyzerStopFast()
+                        "bt_scan"        -> Esp32Client.btScanStopFast()
                         "bt_jammer"      -> Esp32Client.btJammerStopFast()
                         "deauth"         -> Esp32Client.deauthStopFast()
                         "eviltwin"       -> Esp32Client.eviltwinStopFast()
