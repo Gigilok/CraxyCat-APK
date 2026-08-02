@@ -340,22 +340,24 @@ class ToolViewerActivity : AppCompatActivity() {
         isRunning = false
 
         val tool = intent.getStringExtra(EXTRA_TOOL) ?: ""
+        // Usa versões *Fast com timeout de 3s para não travar a UI
+        // Se o ESP32 não responder em 3s, desiste e fecha mesmo assim
         Thread {
             try {
                 runBlocking {
                     when (tool) {
-                        "nrf24_scanner"  -> Esp32Client.nrf24ScannerStop()
-                        "nrf24_jammer"   -> Esp32Client.nrf24JammerStop()
-                        "cc1101_rolljam" -> Esp32Client.cc1101RollJamStop()
-                        "cc1101_jammer"  -> Esp32Client.cc1101JammerStop()
-                        "cc1101_analyzer"-> Esp32Client.cc1101AnalyzerStop()
-                        "bt_jammer"      -> Esp32Client.btJammerStop()
-                        "deauth"         -> Esp32Client.deauthStop()
-                        "eviltwin"       -> Esp32Client.eviltwinStop()
-                        "drone_jammer"   -> Esp32Client.droneJammerStop()
-                        "camera_freeze"  -> Esp32Client.cameraFreezeStop()
-                        "bf_gate"        -> Esp32Client.bfGateStop()
-                        "bf_car"         -> Esp32Client.bfCarStop()
+                        "nrf24_scanner"  -> Esp32Client.nrf24ScannerStopFast()
+                        "nrf24_jammer"   -> Esp32Client.nrf24JammerStopFast()
+                        "cc1101_rolljam" -> Esp32Client.cc1101RollJamStopFast()
+                        "cc1101_jammer"  -> Esp32Client.cc1101JammerStopFast()
+                        "cc1101_analyzer"-> Esp32Client.cc1101AnalyzerStopFast()
+                        "bt_jammer"      -> Esp32Client.btJammerStopFast()
+                        "deauth"         -> Esp32Client.deauthStopFast()
+                        "eviltwin"       -> Esp32Client.eviltwinStopFast()
+                        "drone_jammer"   -> Esp32Client.droneJammerStopFast()
+                        "camera_freeze"  -> Esp32Client.cameraFreezeStopFast()
+                        "bf_gate"        -> Esp32Client.bfGateStopFast()
+                        "bf_car"         -> Esp32Client.bfCarStopFast()
                         else -> {}
                     }
                 }
@@ -576,7 +578,8 @@ class ToolViewerActivity : AppCompatActivity() {
                     val connected = Esp32Client.checkConnection()
                     if (!connected) {
                         failCount++
-                        if (failCount >= 3) {
+                        // 5 falhas consecutivas (10s) = desiste
+                        if (failCount >= 5) {
                             setStatusRunning(false)
                             runOnUiThread { tvStatusDetail.text = "ESP32 desconectado!" }
                             break
