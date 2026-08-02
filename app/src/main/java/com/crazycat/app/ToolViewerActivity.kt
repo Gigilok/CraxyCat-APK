@@ -280,7 +280,24 @@ class ToolViewerActivity : AppCompatActivity() {
                 }
             }
             "bt_jammer" -> {
-                lifecycleScope.launch { loadBTDeviceList() }
+                lifecycleScope.launch {
+                    // CORREÇÃO: inicia spam BLE IMEDIATAMENTE sem pedir scan.
+                    // O jammer é broadcast (inunda todos os dispositivos próximos)
+                    // e não precisa de um dispositivo específico para funcionar.
+                    switchToPanel("status")
+                    tvStatusTitle.text = "BLE SPAM"
+                    tvStatusDetail.text = "Inundando dispositivos próximos"
+                    startPulse(Color.parseColor("#3B82F6"))
+                    val ok = Esp32Client.btJammerStart(0)
+                    if (!ok) {
+                        tvStatusTitle.text = "ERRO BLE"
+                        tvStatusDetail.text = "Falha: ${Esp32Client.lastError ?: "ESP32 não respondeu"}"
+                        setStatusRunning(false)
+                        pulseJob?.cancel()
+                    } else {
+                        pollGenericStatus()
+                    }
+                }
             }
             "wifi_scan" -> {
                 lifecycleScope.launch {
