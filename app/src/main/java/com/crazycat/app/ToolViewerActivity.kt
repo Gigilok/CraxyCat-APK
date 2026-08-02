@@ -1,671 +1,1242 @@
-// ============================================================
-// wifi_api.cpp - Servidor HTTP REST (Safe Action & PCAP Edition)
-// ============================================================
-#include "wifi_api.h"
-#include "config.h"
-#include "wifi_handshake.h"
-#include <WiFi.h>
-#include <WebServer.h>
-#include <ArduinoJson.h>
+package com.crazycat.app
 
-// ============================================================
-// FORWARD DECLARATIONS
-// ============================================================
-extern MenuItem* currentMenuItems;
-extern uint8_t currentMenuItemCount;
-extern const char* currentMenuTitle;
-extern int8_t menuIndex;
-extern int8_t menuMaxIndex;
-extern bool scannerRunning;
-extern bool capturing;
-extern unsigned long captureStartTime;
-extern void enterMenu(MenuState state);
-extern void goBack();
+import android.content.Intent
+import android.graphics.Color
+import android.graphics.drawable.GradientDrawable
+import android.os.Bundle
+import android.view.Gravity
+import android.view.View
+import android.widget.Button
+import android.widget.LinearLayout
+import android.widget.ScrollView
+import android.widget.TextView
+import android.widget.Toast
+import androidx.appcompat.app.AppCompatActivity
+import androidx.lifecycle.lifecycleScope
+import com.crazycat.app.api.Esp32Client
+import com.crazycat.app.tools.AircrackRunner
+import com.crazycat.app.tools.SubGhzProcessor
+import com.crazycat.app.views.BarChartView
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.runBlocking
+import org.json.JSONObject
+import java.io.File
 
-extern void scanNetworks();
-extern uint8_t getNetworkCount();
-extern NetworkInfo* getNetwork(uint8_t);
-extern void startDeauth(uint8_t);
-extern void stopDeauth();
-extern void startEvilTwin(uint8_t);
-extern void stopEvilTwin();
-extern void startFakeAP(const char*);
-extern void stopFakeAP();
 
-extern bool nrf24JammerActive;
-extern void nrf24StartJammer();
-extern void nrf24StopJammer();
-extern bool nrf24IsScanning();
-extern void nrf24StartScan();
-extern void nrf24StopScan();
-extern void nrf24SpecStart();
-extern void nrf24SpecStop();
-extern bool nrf24SpecIsRunning();
-extern uint32_t nrf24SpecGetFrames();
-extern int8_t nrf24SpecGetBarValue(int);
-extern int8_t nrf24SpecGetPeakValue(int);
-extern bool nrf24SpecGetWaterfallPixel(int, int);
-extern const int8_t* nrf24GetScanBarData();
-extern uint32_t nrf24GetScanTotalPackets();
-extern uint8_t nrf24GetSavedCount();
-extern uint8_t nrf24GetDetectedCount();
-extern uint8_t nrf24GetAnalyzeSelected();
+class ToolViewerActivity : AppCompatActivity() {
 
-extern bool cc1101CopyActive;
-extern void cc1101StartCapture();
-extern void cc1101StopCapture();
-extern void cc1101ReplaySignal(uint8_t);
-extern uint8_t cc1101GetSavedCount();
-extern SignalData* cc1101GetSignal(uint8_t);
-extern void cc1101TransmitRaw(uint32_t frequency, uint16_t* timings, uint8_t length);
-extern void cc1101StartSubGHzJammer();
-extern void cc1101StopSubGHzJammer();
-extern void cc1101StartRollJam();
-extern void cc1101StopRollJam();
-extern void cc1101ClearSavedSignals();
-extern void cc1101StartAnalyzer();
-extern void cc1101StopAnalyzer();
-extern bool cc1101AnalyzerIsRunning();
-extern uint16_t cc1101GetAnalyzerValue(int idx);
-extern uint32_t cc1101GetAnalyzerFreq(int idx);
-
-extern uint8_t btDeviceCount;
-extern void startBTScan();
-extern void startBTJammer(uint8_t);
-extern void stopBTJammer();
-extern void stopBTScan();
-extern uint8_t getBTDeviceCount();
-extern BTDevice* getBTDevice(uint8_t);
-extern bool isBLEAvailable();
-extern bool isBTScanning();
-
-extern bool bfRunning;
-extern void startGateBruteForce();
-extern void stopBruteForce();
-extern void startCarBruteForce(uint8_t);
-extern uint32_t getCurrentBFIndex();
-extern uint32_t getTotalBFCount(uint8_t, uint8_t);
-extern uint8_t getCarBrandCount();
-extern bool bfIsGate;
-extern uint8_t bfCarBrand;
-extern const char* getCarBrandName(uint8_t);
-
-extern bool droneJammerActive;
-extern void startDroneJammer();
-extern void stopDroneJammer();
-extern bool cameraFreezeActive;
-extern void startCameraFreeze();
-extern void stopCameraFreeze();
-
-extern void initConnection(int);
-extern void setBrightness(uint8_t brightness);
-
-extern uint8_t* getPcapData(size_t* outLen);
-
-// ============================================================
-// SERVER
-// ============================================================
-static WebServer apiServer(8080);
-static bool apiRunning = false;
-
-static volatile bool pendingDeauthStart = false;
-static volatile bool pendingEvilTwinStart = false;
-static volatile bool pendingDeauthStop = false;
-static volatile bool pendingEvilTwinStop = false;
-static volatile int pendingNetIdx = -1;
-
-static void sendJSON(int code, const String& json) {
-    apiServer.sendHeader("Access-Control-Allow-Origin", "*");
-    apiServer.sendHeader("Access-Control-Allow-Methods", "GET, POST, OPTIONS");
-    apiServer.sendHeader("Access-Control-Allow-Headers", "Content-Type");
-    apiServer.sendHeader("Connection", "close");
-    apiServer.send(code, "application/json", json);
-}
-
-static void sendOK(const String& msg) {
-    DynamicJsonDocument doc(256);
-    doc["status"] = "ok";
-    doc["message"] = msg;
-    String out;
-    serializeJson(doc, out);
-    sendJSON(200, out);
-}
-
-static void sendERR(const String& msg) {
-    DynamicJsonDocument doc(256);
-    doc["status"] = "error";
-    doc["message"] = msg;
-    String out;
-    serializeJson(doc, out);
-    sendJSON(400, out);
-}
-
-// ============================================================
-// ENDPOINTS
-// ============================================================
-
-static void handleStatus() {
-    DynamicJsonDocument doc(512);
-    doc["menu"] = (int)currentMenu;
-    doc["menu_name"] = currentMenuTitle ? currentMenuTitle : "";
-    doc["wifi_enabled"] = wifiEnabled;
-    doc["deauth_active"] = deauthActive;
-    doc["eviltwin_active"] = evilTwinActive;
-    doc["handshake_status"] = getHandshakeStatus();
-    doc["handshake_complete"] = isHandshakeComplete();
-    doc["nrf24_jammer"] = nrf24JammerActive;
-    doc["nrf24_scanning"] = nrf24IsScanning();
-    doc["cc1101_capturing"] = cc1101CopyActive;
-    doc["drone_jammer"] = droneJammerActive;
-    doc["camera_freeze"] = cameraFreezeActive;
-    doc["bt_jammer"] = btJammerActive;
-    doc["ble_available"] = isBLEAvailable();
-    doc["ble_scanning"] = isBTScanning();
-    doc["bruteforce"] = bfRunning;
-    doc["network_count"] = networkCount;
-    doc["btdevice_count"] = btDeviceCount;
-    doc["cc1101_signals"] = cc1101GetSavedCount();
-    doc["nrf24_signals"] = nrf24GetSavedCount();
-    String out;
-    serializeJson(doc, out);
-    sendJSON(200, out);
-}
-
-static void handleNetworks() {
-    DynamicJsonDocument doc(2048);
-    JsonArray nets = doc.createNestedArray("networks");
-    for (int i = 0; i < (int)networkCount; i++) {
-        NetworkInfo* net = &scannedNetworks[i];
-        JsonObject obj = nets.createNestedObject();
-        obj["id"] = i;
-        obj["ssid"] = net->ssid;
-        obj["channel"] = net->channel;
-        obj["rssi"] = net->rssi;
-        obj["encrypted"] = net->encrypted;
-        char bssid[18];
-        snprintf(bssid, 18, "%02X:%02X:%02X:%02X:%02X:%02X",
-            net->bssid[0], net->bssid[1], net->bssid[2],
-            net->bssid[3], net->bssid[4], net->bssid[5]);
-        obj["bssid"] = bssid;
+    companion object {
+        const val EXTRA_TOOL = "tool"
+        const val EXTRA_LABEL = "label"
+        const val EXTRA_MODE = "mode"
+        const val EXTRA_PARAM = "param"
     }
-    String out;
-    serializeJson(doc, out);
-    sendJSON(200, out);
-}
 
-static void handleScanNetworks() {
-    yield();
-    scanNetworks(); 
-    yield();
-    DynamicJsonDocument doc(2048);
-    doc["status"] = "ok";
-    doc["message"] = "Scan complete";
-    doc["count"] = networkCount;
-    JsonArray nets = doc.createNestedArray("networks");
-    for (int i = 0; i < (int)networkCount; i++) {
-        NetworkInfo* net = &scannedNetworks[i];
-        JsonObject obj = nets.createNestedObject();
-        obj["id"] = i;
-        obj["ssid"] = net->ssid;
-        obj["channel"] = net->channel;
-        obj["rssi"] = net->rssi;
-        obj["encrypted"] = net->encrypted;
-        char bssid[18];
-        snprintf(bssid, 18, "%02X:%02X:%02X:%02X:%02X:%02x",
-            net->bssid[0], net->bssid[1], net->bssid[2],
-            net->bssid[3], net->bssid[4], net->bssid[5]);
-        obj["bssid"] = bssid;
+    private lateinit var tvTitle: TextView
+    private lateinit var tvStatusIndicator: TextView
+    private lateinit var infoBar: LinearLayout
+    private lateinit var tvInfoText: TextView
+    private lateinit var tvInfoText2: TextView
+    private lateinit var barChart: BarChartView
+    private lateinit var listContainer: ScrollView
+    private lateinit var listContent: LinearLayout
+    private lateinit var statusPanel: LinearLayout
+    private lateinit var pulseCircle: View
+    private lateinit var tvStatusTitle: TextView
+    private lateinit var tvStatusDetail: TextView
+    private lateinit var tvStatusTimer: TextView
+    private lateinit var progressPanel: LinearLayout
+    private lateinit var tvProgressLabel: TextView
+    private lateinit var progressBar: android.widget.ProgressBar
+    private lateinit var tvProgressText: TextView
+    private lateinit var tvProgressPercent: TextView
+    private lateinit var keeloqPanel: LinearLayout
+    private lateinit var tvKeeloqStatus: TextView
+    private lateinit var crackPanel: LinearLayout
+    private lateinit var tvCrackStatus: TextView
+    private lateinit var crackProgress: android.widget.ProgressBar
+    private lateinit var btnStop: Button
+
+    private var pollJob: Job? = null
+    private var startTime: Long = 0
+    private var timerJob: Job? = null
+    private var pulseJob: Job? = null
+    @Volatile private var isRunning: Boolean = false
+
+    override fun onCreate(savedInstanceState: Bundle?) {
+        super.onCreate(savedInstanceState)
+        setContentView(R.layout.activity_tool_viewer)
+
+        bindViews()
+        val tool = intent.getStringExtra(EXTRA_TOOL) ?: return
+        val label = intent.getStringExtra(EXTRA_LABEL) ?: tool
+        val mode = intent.getStringExtra(EXTRA_MODE) ?: "status"
+        val param = intent.getIntExtra(EXTRA_PARAM, 0)
+
+        tvTitle.text = label
+        btnStop.setOnClickListener { stopAndFinish() }
+        findViewById<View>(R.id.btnBack).setOnClickListener { stopAndFinish() }
+
+        showPanel(mode)
+        startTool(tool, mode, param)
     }
-    String out;
-    serializeJson(doc, out);
-    sendJSON(200, out);
-}
 
-static void handleDeauthStart() {
-    if (!apiServer.hasArg("id")) { sendERR("Missing id"); return; }
-    int netIdx = apiServer.arg("id").toInt();
-    if (netIdx < 0 || netIdx >= (int)networkCount) { sendERR("Invalid network id"); return; }
-    pendingNetIdx = netIdx;
-    pendingDeauthStart = true; 
-    sendOK("Deauth started");
-}
-
-static void handleDeauthStop() {
-    pendingDeauthStop = true;
-    sendOK("Deauth stopped");
-}
-
-static void handleEvilTwinStart() {
-    if (!apiServer.hasArg("id")) { sendERR("Missing id"); return; }
-    int netIdx = apiServer.arg("id").toInt();
-    if (netIdx < 0 || netIdx >= (int)networkCount) { sendERR("Invalid network id"); return; }
-    pendingNetIdx = netIdx;
-    pendingEvilTwinStart = true;
-    sendOK("Evil Twin started");
-}
-
-static void handleEvilTwinStop() {
-    pendingEvilTwinStop = true;
-    sendOK("Evil Twin stopped");
-}
-
-static void handleHandshakeStatus() {
-    DynamicJsonDocument doc(256);
-    doc["capturing"] = isHandshakeCapturing();
-    doc["complete"] = isHandshakeComplete();
-    doc["frames"] = getHandshakeMessageCount();
-    doc["status"] = getHandshakeStatus();
-    String out;
-    serializeJson(doc, out);
-    sendJSON(200, out);
-}
-
-static void handleHandshakeDownload() {
-    if (getHandshakeMessageCount() == 0) {
-        sendERR("No handshake captured. Use Evil Twin first");
-        return;
+    private fun bindViews() {
+        tvTitle = findViewById(R.id.tvToolTitle)
+        tvStatusIndicator = findViewById(R.id.tvStatusIndicator)
+        infoBar = findViewById(R.id.infoBar)
+        tvInfoText = findViewById(R.id.tvInfoText)
+        tvInfoText2 = findViewById(R.id.tvInfoText2)
+        barChart = findViewById(R.id.barChart)
+        listContainer = findViewById(R.id.listContainer)
+        listContent = findViewById(R.id.listContent)
+        statusPanel = findViewById(R.id.statusPanel)
+        pulseCircle = findViewById(R.id.pulseCircle)
+        tvStatusTitle = findViewById(R.id.tvStatusTitle)
+        tvStatusDetail = findViewById(R.id.tvStatusDetail)
+        tvStatusTimer = findViewById(R.id.tvStatusTimer)
+        progressPanel = findViewById(R.id.progressPanel)
+        tvProgressLabel = findViewById(R.id.tvProgressLabel)
+        progressBar = findViewById(R.id.progressBar)
+        tvProgressText = findViewById(R.id.tvProgressText)
+        tvProgressPercent = findViewById(R.id.tvProgressPercent)
+        keeloqPanel = findViewById(R.id.keeloqPanel)
+        tvKeeloqStatus = findViewById(R.id.tvKeeloqStatus)
+        crackPanel = findViewById(R.id.crackPanel)
+        tvCrackStatus = findViewById(R.id.tvCrackStatus)
+        crackProgress = findViewById(R.id.crackProgress)
+        btnStop = findViewById(R.id.btnStop)
     }
-    size_t pcapLen = 0;
-    uint8_t* pcapData = getPcapData(&pcapLen);
-    if (pcapData == nullptr || pcapLen == 0) {
-        sendERR("Failed to build PCAP file.");
-        return;
-    }
-    apiServer.sendHeader("Content-Disposition", "attachment; filename=handshake.pcap");
-    apiServer.sendHeader("Content-Length", String(pcapLen));
-    apiServer.sendHeader("Connection", "close");
-    apiServer.send(200, "application/vnd.tcpdump.pcap", "");
-    apiServer.sendContent((const char*)pcapData, pcapLen);
-    free(pcapData);
-}
 
-static void handleNRF24JammerStart() { if (!nrf24JammerActive) nrf24StartJammer(); sendOK("NRF24 Jammer started"); }
-static void handleNRF24JammerStop() { nrf24StopJammer(); sendOK("NRF24 Jammer stopped"); }
-static void handleNRF24ScannerStart() { scannerRunning = true; nrf24SpecStart(); sendOK("NRF24 Scanner started"); }
-static void handleNRF24ScannerStop() { scannerRunning = false; nrf24SpecStop(); sendOK("NRF24 Scanner stopped"); }
+    private fun showPanel(mode: String) {
+        barChart.visibility = View.GONE
+        listContainer.visibility = View.GONE
+        statusPanel.visibility = View.GONE
+        progressPanel.visibility = View.GONE
+        keeloqPanel.visibility = View.GONE
+        crackPanel.visibility = View.GONE
+        infoBar.visibility = View.GONE
 
-static void handleNRF24ScanData() {
-    DynamicJsonDocument doc(512);
-    const int8_t* bars = nrf24GetScanBarData();
-    JsonArray arr = doc.createNestedArray("bars");
-    for (int i = 0; i < 16; i++) arr.add(bars[i]);
-    doc["packets"] = nrf24GetScanTotalPackets();
-    String out;
-    serializeJson(doc, out);
-    sendJSON(200, out);
-}
-
-// NOVO: scanner estilo Flipper (64 barras + peaks)
-static void handleNRF24SpecData() {
-    DynamicJsonDocument doc(2048);
-    JsonArray barsArr  = doc.createNestedArray("bars");
-    JsonArray peaksArr = doc.createNestedArray("peaks");
-    for (int i = 0; i < 64; i++) {
-        barsArr.add((int)nrf24SpecGetBarValue(i));
-        peaksArr.add((int)nrf24SpecGetPeakValue(i));
-    }
-    doc["frames"]     = nrf24SpecGetFrames();
-    doc["running"]    = nrf24SpecIsRunning();
-    doc["max_height"] = 40;
-    doc["channels"]   = 64;
-    String out;
-    serializeJson(doc, out);
-    sendJSON(200, out);
-}
-
-static void handleCC1101Copy() {
-    yield();
-    if (!capturing) {
-        capturing = true; captureStartTime = millis(); cc1101StartCapture(); capturing = false;
-    }
-    yield();
-    sendOK("CC1101 copy started");
-}
-
-static void handleCC1101Replay() {
-    if (!apiServer.hasArg("id")) { sendERR("Missing id"); return; }
-    int idx = apiServer.arg("id").toInt();
-    if (idx < (int)cc1101GetSavedCount()) { cc1101ReplaySignal(idx); sendOK("CC1101 replay"); } 
-    else { sendERR("Invalid signal id"); }
-}
-
-static void handleCC1101Signals() {
-    DynamicJsonDocument doc(1024);
-    JsonArray arr = doc.createNestedArray("signals");
-    for (int i = 0; i < (int)cc1101GetSavedCount(); i++) {
-        SignalData* sig = cc1101GetSignal(i);
-        if (!sig || !sig->valid) continue;
-        JsonObject obj = arr.createNestedObject();
-        obj["id"] = i; obj["name"] = sig->name; obj["frequency"] = sig->frequency;
-    }
-    String out; serializeJson(doc, out); sendJSON(200, out);
-}
-
-static void handleCC1101GetRaw() {
-    if (!apiServer.hasArg("id")) { sendERR("Missing id"); return; }
-    int idx = apiServer.arg("id").toInt();
-    SignalData* sig = cc1101GetSignal(idx);
-    if (!sig || !sig->valid) { sendERR("Invalid signal id"); return; }
-    
-    DynamicJsonDocument doc(4096);
-    doc["frequency"] = sig->frequency;
-    doc["length"] = sig->length;
-    JsonArray timings = doc.createNestedArray("timings");
-    for (int i = 0; i < sig->length; i++) {
-        timings.add(sig->timings[i]);
-    }
-    String out;
-    serializeJson(doc, out);
-    sendJSON(200, out);
-}
-
-static void handleCC1101TransmitRaw() {
-    if (!apiServer.hasArg("plain")) { sendERR("Missing body"); return; }
-    DynamicJsonDocument doc(4096);
-    DeserializationError error = deserializeJson(doc, apiServer.arg("plain"));
-    if (error) { sendERR("Invalid JSON"); return; }
-    
-    uint32_t freq = doc["frequency"];
-    JsonArray timings = doc["timings"];
-    
-    uint8_t length = timings.size();
-    if (length == 0 || length > 200) { sendERR("Invalid timings length"); return; }
-    
-    uint16_t buf[200];
-    for (int i = 0; i < length; i++) {
-        buf[i] = timings[i];
-    }
-    
-    cc1101TransmitRaw(freq, buf, length);
-    sendOK("Raw signal transmitted");
-}
-
-// NOVOS: CC1101 Jammer, RollJam, Clear, Analyzer
-static void handleCC1101JammerStart() { cc1101StartSubGHzJammer(); sendOK("CC1101 Jammer started"); }
-static void handleCC1101JammerStop() { cc1101StopSubGHzJammer(); sendOK("CC1101 Jammer stopped"); }
-static void handleCC1101RollJamStart() { cc1101StartRollJam(); sendOK("CC1101 RollJam started"); }
-static void handleCC1101RollJamStop() { cc1101StopRollJam(); sendOK("CC1101 RollJam stopped"); }
-static void handleCC1101Clear() { cc1101ClearSavedSignals(); sendOK("CC1101 signals cleared"); }
-static void handleCC1101AnalyzerStart() { cc1101StartAnalyzer(); sendOK("CC1101 Analyzer started"); }
-static void handleCC1101AnalyzerStop() { cc1101StopAnalyzer(); sendOK("CC1101 Analyzer stopped"); }
-static void handleCC1101AnalyzerData() {
-    DynamicJsonDocument doc(4096);
-    JsonArray barsArr = doc.createNestedArray("bars");
-    JsonArray freqsArr = doc.createNestedArray("freqs");
-    for (int i = 0; i < 64; i++) {
-        barsArr.add(cc1101GetAnalyzerValue(i));
-        freqsArr.add((uint32_t)cc1101GetAnalyzerFreq(i));
-    }
-    doc["running"] = cc1101AnalyzerIsRunning();
-    String out;
-    serializeJson(doc, out);
-    sendJSON(200, out);
-}
-
-static void handleDroneJammerStart() { if (!droneJammerActive) startDroneJammer(); sendOK("Drone jammer started"); }
-static void handleDroneJammerStop() { stopDroneJammer(); sendOK("Drone jammer stopped"); }
-static void handleCameraFreezeStart() { if (!cameraFreezeActive) startCameraFreeze(); sendOK("Camera freeze started"); }
-static void handleCameraFreezeStop() { stopCameraFreeze(); sendOK("Camera freeze stopped"); }
-
-static void handleBTScan() {
-    if (!isBLEAvailable()) { sendERR("BLE not available"); return; }
-    if (isBTScanning()) { sendERR("Scan already in progress"); return; }
-    btDeviceCount = 0; startBTScan(); sendOK("BT scan started (15s async)");
-}
-
-static void handleBTDevices() {
-    DynamicJsonDocument doc(1024);
-    JsonArray arr = doc.createNestedArray("devices");
-    for (int i = 0; i < (int)btDeviceCount; i++) {
-        BTDevice* dev = getBTDevice(i);
-        if (!dev) continue;
-        JsonObject obj = arr.createNestedObject();
-        obj["id"] = i; obj["name"] = dev->name; obj["rssi"] = dev->rssi;
-    }
-    String out; serializeJson(doc, out); sendJSON(200, out);
-}
-
-static void handleBTJammerStart() {
-    if (!isBLEAvailable()) { sendERR("BLE not available"); return; }
-    if (!apiServer.hasArg("id")) { sendERR("Missing id"); return; }
-    int idx = apiServer.arg("id").toInt();
-    if (idx < (int)btDeviceCount) { startBTJammer(idx); sendOK("BT jammer started"); } 
-    else { sendERR("Invalid device id"); }
-}
-static void handleBTJammerStop() { stopBTJammer(); sendOK("BT jammer stopped"); }
-
-static void handleBTScanStatus() {
-    DynamicJsonDocument doc(256);
-    doc["ble_available"] = isBLEAvailable();
-    doc["scanning"] = isBTScanning();
-    doc["device_count"] = btDeviceCount;
-    String out; serializeJson(doc, out); sendJSON(200, out);
-}
-
-static void handleBFGateStart() { if (!bfRunning) startGateBruteForce(); sendOK("BF Gate started"); }
-static void handleBFGateStop() { stopBruteForce(); sendOK("BF Gate stopped"); }
-static void handleBFCarStart() {
-    if (!apiServer.hasArg("brand")) { sendERR("Missing brand"); return; }
-    int brand = apiServer.arg("brand").toInt();
-    if (brand < getCarBrandCount()) { if (!bfRunning) startCarBruteForce(brand); sendOK("BF Car started"); } 
-    else { sendERR("Invalid brand"); }
-}
-static void handleBFCarStop() { stopBruteForce(); sendOK("BF Car stopped"); }
-
-static void handleBFStatus() {
-    DynamicJsonDocument doc(512);
-    doc["running"] = bfRunning;
-    doc["current_index"] = getCurrentBFIndex();
-    doc["gate_total"] = getTotalBFCount(0, 0);
-    doc["brand_count"] = getCarBrandCount();
-    if (bfRunning) {
-        if (bfIsGate) {
-            doc["mode"] = "gate";
-            doc["total"] = getTotalBFCount(0, 0);
-        } else {
-            doc["mode"] = "car";
-            doc["brand"] = bfCarBrand;
-            doc["brand_name"] = getCarBrandName(bfCarBrand);
-            doc["total"] = getTotalBFCount(1, bfCarBrand);
+        when (mode) {
+            "graph16", "graph64" -> {
+                barChart.visibility = View.VISIBLE
+                infoBar.visibility = View.VISIBLE
+            }
+            "list_signals", "list_networks", "list_devices" -> {
+                listContainer.visibility = View.VISIBLE
+            }
+            "pick_signal", "pick_network", "pick_device" -> {
+                listContainer.visibility = View.VISIBLE
+            }
+            "status", "confirm" -> {
+                statusPanel.visibility = View.VISIBLE
+            }
+            "progress" -> {
+                progressPanel.visibility = View.VISIBLE
+            }
+            "keeloq" -> {
+                keeloqPanel.visibility = View.VISIBLE
+            }
+            "crack" -> {
+                crackPanel.visibility = View.VISIBLE
+            }
         }
-    } else {
-        doc["mode"] = "idle";
-        doc["total"] = 0;
     }
-    String out; serializeJson(doc, out); sendJSON(200, out);
-}
 
-// NOVO: lista de marcas de carro
-static void handleBFCarBrands() {
-    DynamicJsonDocument doc(1024);
-    JsonArray arr = doc.createNestedArray("brands");
-    for (int i = 0; i < getCarBrandCount(); i++) {
-        JsonObject obj = arr.createNestedObject();
-        obj["id"] = i;
-        obj["name"] = getCarBrandName(i);
-        obj["total"] = getTotalBFCount(1, i);
-    }
-    String out;
-    serializeJson(doc, out);
-    sendJSON(200, out);
-}
-
-static void handleSetBrightness() {
-    if (!apiServer.hasArg("value")) { sendERR("Missing value"); return; }
-    int val = apiServer.arg("value").toInt();
-    if (val >= 0 && val <= 255) { screenBrightness = val; setBrightness(screenBrightness); sendOK("Brightness set"); } 
-    else { sendERR("Invalid value (0-255)"); }
-}
-
-static void handleWiFiToggle() {
-    if (!wifiEnabled && !isBLEAvailable()) {
-        // Turning WiFi ON, BLE might need re-init later
-    }
-    toggleWiFi();
-    DynamicJsonDocument doc(256);
-    doc["status"] = "ok";
-    doc["wifi_enabled"] = wifiEnabled;
-    String out;
-    serializeJson(doc, out);
-    sendJSON(200, out);
-}
-
-static void handleMenuNavigate() {
-    if (!apiServer.hasArg("to")) { sendERR("Missing to"); return; }
-    String target = apiServer.arg("to");
-    if (target == "MAIN") enterMenu(MENU_MAIN);
-    else if (target == "NRF24") enterMenu(MENU_NRF24);
-    else if (target == "CC1101") enterMenu(MENU_CC1101);
-    else if (target == "ATTACKS") enterMenu(MENU_ATTACKS);
-    else if (target == "NETWORKS") enterMenu(MENU_NETWORKS);
-    else if (target == "SETTINGS") enterMenu(MENU_SETTINGS);
-    else { sendERR("Unknown menu"); return; }
-    sendOK("Menu changed");
-}
-
-static void handleButton() {
-    if (!apiServer.hasArg("action")) { sendERR("Missing action"); return; }
-    String action = apiServer.arg("action");
-    if (action == "UP") { if (menuIndex > 0) menuIndex--; } 
-    else if (action == "DOWN") { if (menuIndex < menuMaxIndex) menuIndex++; } 
-    else if (action == "SELECT") { if (currentMenuItems && menuIndex < (int)currentMenuItemCount) enterMenu(currentMenuItems[menuIndex].state); } 
-    else if (action == "BACK") { goBack(); } 
-    else { sendERR("Unknown action"); return; }
-    sendOK("Button " + action + " pressed");
-}
-
-// ============================================================
-// SETUP
-// ============================================================
-void startAPIServer() {
-    if (apiRunning) return;
-
-    apiServer.onNotFound([]() {
-        if (apiServer.method() == HTTP_OPTIONS) {
-            apiServer.sendHeader("Access-Control-Allow-Origin", "*");
-            apiServer.sendHeader("Access-Control-Allow-Methods", "GET, POST, OPTIONS");
-            apiServer.sendHeader("Access-Control-Allow-Headers", "Content-Type");
-            apiServer.send(204);
-            return;
+    private fun switchToPanel(panel: String) {
+        runOnUiThread {
+            barChart.visibility = View.GONE
+            listContainer.visibility = View.GONE
+            statusPanel.visibility = View.GONE
+            progressPanel.visibility = View.GONE
+            keeloqPanel.visibility = View.GONE
+            crackPanel.visibility = View.GONE
+            pulseJob?.cancel()
+            when (panel) {
+                "graph" -> { barChart.visibility = View.VISIBLE; infoBar.visibility = View.VISIBLE }
+                "list"  -> { listContainer.visibility = View.VISIBLE }
+                "status"-> { statusPanel.visibility = View.VISIBLE }
+            }
         }
-        sendERR("Endpoint not found: " + apiServer.uri());
-    });
+    }
 
-    apiServer.on("/api/status", HTTP_GET, handleStatus);
-    apiServer.on("/api/networks", HTTP_GET, handleNetworks);
-    apiServer.on("/api/networks/scan", HTTP_POST, handleScanNetworks);
-    apiServer.on("/api/deauth/start", HTTP_POST, handleDeauthStart);
-    apiServer.on("/api/deauth/stop", HTTP_POST, handleDeauthStop);
-    apiServer.on("/api/eviltwin/start", HTTP_POST, handleEvilTwinStart);
-    apiServer.on("/api/eviltwin/stop", HTTP_POST, handleEvilTwinStop);
-    apiServer.on("/api/handshake", HTTP_GET, handleHandshakeStatus);
-    apiServer.on("/api/handshake/download", HTTP_GET, handleHandshakeDownload);
-    apiServer.on("/api/nrf24/jammer/start", HTTP_POST, handleNRF24JammerStart);
-    apiServer.on("/api/nrf24/jammer/stop", HTTP_POST, handleNRF24JammerStop);
-    apiServer.on("/api/nrf24/scanner/start", HTTP_POST, handleNRF24ScannerStart);
-    apiServer.on("/api/nrf24/scanner/stop", HTTP_POST, handleNRF24ScannerStop);
-    apiServer.on("/api/nrf24/scan", HTTP_GET, handleNRF24ScanData);
-    apiServer.on("/api/nrf24/spec", HTTP_GET, handleNRF24SpecData);
-    apiServer.on("/api/cc1101/copy", HTTP_POST, handleCC1101Copy);
-    apiServer.on("/api/cc1101/replay", HTTP_POST, handleCC1101Replay);
-    apiServer.on("/api/cc1101/signals", HTTP_GET, handleCC1101Signals);
-    apiServer.on("/api/cc1101/raw", HTTP_GET, handleCC1101GetRaw);
-    apiServer.on("/api/cc1101/transmit_raw", HTTP_POST, handleCC1101TransmitRaw);
-    apiServer.on("/api/cc1101/jammer/start", HTTP_POST, handleCC1101JammerStart);
-    apiServer.on("/api/cc1101/jammer/stop", HTTP_POST, handleCC1101JammerStop);
-    apiServer.on("/api/cc1101/rolljam/start", HTTP_POST, handleCC1101RollJamStart);
-    apiServer.on("/api/cc1101/rolljam/stop", HTTP_POST, handleCC1101RollJamStop);
-    apiServer.on("/api/cc1101/clear", HTTP_POST, handleCC1101Clear);
-    apiServer.on("/api/cc1101/analyzer/start", HTTP_POST, handleCC1101AnalyzerStart);
-    apiServer.on("/api/cc1101/analyzer/stop", HTTP_POST, handleCC1101AnalyzerStop);
-    apiServer.on("/api/cc1101/analyzer/data", HTTP_GET, handleCC1101AnalyzerData);
-    apiServer.on("/api/attack/drone/jammer/start", HTTP_POST, handleDroneJammerStart);
-    apiServer.on("/api/attack/drone/jammer/stop", HTTP_POST, handleDroneJammerStop);
-    apiServer.on("/api/attack/camera/freeze/start", HTTP_POST, handleCameraFreezeStart);
-    apiServer.on("/api/attack/camera/freeze/stop", HTTP_POST, handleCameraFreezeStop);
-    apiServer.on("/api/attack/bt/scan", HTTP_POST, handleBTScan);
-    apiServer.on("/api/attack/bt/devices", HTTP_GET, handleBTDevices);
-    apiServer.on("/api/attack/bt/jammer/start", HTTP_POST, handleBTJammerStart);
-    apiServer.on("/api/attack/bt/jammer/stop", HTTP_POST, handleBTJammerStop);
-    apiServer.on("/api/attack/bt/status", HTTP_GET, handleBTScanStatus);
-    apiServer.on("/api/attack/bf/gate/start", HTTP_POST, handleBFGateStart);
-    apiServer.on("/api/attack/bf/gate/stop", HTTP_POST, handleBFGateStop);
-    apiServer.on("/api/attack/bf/car/start", HTTP_POST, handleBFCarStart);
-    apiServer.on("/api/attack/bf/car/stop", HTTP_POST, handleBFCarStop);
-    apiServer.on("/api/attack/bf/status", HTTP_GET, handleBFStatus);
-    apiServer.on("/api/attack/bf/brands", HTTP_GET, handleBFCarBrands);
-    apiServer.on("/api/settings/brightness", HTTP_POST, handleSetBrightness);
-    apiServer.on("/api/settings/wifi/toggle", HTTP_POST, handleWiFiToggle);
-    apiServer.on("/api/menu/navigate", HTTP_POST, handleMenuNavigate);
-    apiServer.on("/api/btn", HTTP_POST, handleButton);
+    private fun startTool(tool: String, mode: String, param: Int) {
+        isRunning = true
+        startTime = System.currentTimeMillis()
+        setStatusRunning(true)
+        startTimer()
 
-    apiServer.begin();
-    apiRunning = true;
-    Serial.println("[API] HTTP Server started on :8080");
+        when (tool) {
+          "nrf24_scanner" -> {
+                lifecycleScope.launch {
+                    // Inicializa chart com 64 barras (estilo Flipper Zero)
+                    barChart.setBars(List(64) { 0 }, 40)
+                    barChart.setExternalPeaks(List(64) { 0 }, 40)
+                    tvInfoText.text = "SCAN 2.4GHz · 64ch"
+                    tvInfoText2.text = "F:0"
+                    val ok = Esp32Client.nrf24ScannerStart()
+                    if (!ok) {
+                        tvInfoText.text = "Falha ao iniciar scanner"
+                        tvInfoText2.text = "Verifique o firmware"
+                    }
+                    pollNRF24Scanner()
+                }
+            }       
+            "nrf24_jammer" -> {
+                lifecycleScope.launch {
+                    tvStatusTitle.text = "NRF24 JAMMER"
+                    tvStatusDetail.text = "2.4 GHz · Bloqueando"
+                    startPulse(Color.parseColor("#F59E0B"))
+                    Esp32Client.nrf24JammerStart()
+                    pollGenericStatus()
+                }
+            }
+            "cc1101_copy" -> {
+                lifecycleScope.launch {
+                    tvStatusTitle.text = "CAPTURANDO"
+                    tvStatusDetail.text = "Varrendo 315 / 433 / 868 / 915 MHz"
+                    startPulse(Color.parseColor("#00D4FF"))
+                    Esp32Client.cc1101Copy()
+                    pollCaptureStatus()
+                }
+            }
+            "cc1101_replay" -> {
+                lifecycleScope.launch { loadSignalList() }
+            }
+            "rolling_code" -> {
+                lifecycleScope.launch { loadSignalListForKeeloq() }
+            }
+            "cc1101_rolljam" -> {
+                lifecycleScope.launch {
+                    tvStatusTitle.text = "ROLLJAM"
+                    tvStatusDetail.text = "Catch & Jam · 433 MHz"
+                    startPulse(Color.parseColor("#A855F7"))
+                    val ok = Esp32Client.cc1101RollJamStart()
+                    if (!ok) {
+                        tvStatusDetail.text = "Erro ao iniciar RollJam"
+                    }
+                    pollGenericStatus()
+                }
+            }
+            "cc1101_jammer" -> {
+                lifecycleScope.launch {
+                    tvStatusTitle.text = "JAMMER SUB-GHz"
+                    tvStatusDetail.text = "433.92 MHz · Bloqueando"
+                    startPulse(Color.parseColor("#EF4444"))
+                    val ok = Esp32Client.cc1101JammerStart()
+                    if (!ok) {
+                        tvStatusDetail.text = "Erro ao iniciar Jammer"
+                    }
+                    pollGenericStatus()
+                }
+            }
+            "cc1101_analyzer" -> {
+                lifecycleScope.launch {
+                    barChart.setBars(List(64) { 0 }, 40)
+                    tvInfoText.text = "Analisador Sub-GHz"
+                    tvInfoText2.text = ""
+                    val ok = Esp32Client.cc1101AnalyzerStart()
+                    if (!ok) {
+                        tvInfoText.text = "Analyzer indisponível"
+                        tvInfoText2.text = "Atualize o firmware"
+                    }
+                    pollCC1101Analyzer()
+                }
+            }
+            "cc1101_signals" -> {
+                lifecycleScope.launch { loadSignalListReadOnly() }
+            }
+            "cc1101_clear" -> {
+                lifecycleScope.launch {
+                    tvStatusTitle.text = "LIMPAR SINAIS"
+                    tvStatusDetail.text = "Apagando todos os sinais salvos…"
+                    val ok = Esp32Client.cc1101ClearSignals()
+                    delay(500)
+                    tvStatusTitle.text = if (ok) "CONCLUÍDO" else "ERRO"
+                    tvStatusDetail.text = if (ok) "Todos os sinais foram apagados"
+                        else "Falha ao apagar sinais"
+                    setStatusRunning(false)
+                }
+            }
+            "bt_scan" -> {
+                lifecycleScope.launch {
+                    switchToPanel("status")
+                    tvStatusTitle.text = "ESCANEANDO BLE"
+                    tvStatusDetail.text = "Aguardando 15 segundos…"
+                    startPulse(Color.parseColor("#3B82F6"))
+                    val ok = Esp32Client.btScan()
+                    if (!ok) {
+                        // FIX: trata erro de init BLE — antes o APK seguia para pollBTDevices mesmo assim
+                        tvStatusTitle.text = "ERRO BLE"
+                        tvStatusDetail.text = "Falha: ${Esp32Client.lastError ?: "ESP32 não respondeu"}"
+                        setStatusRunning(false)
+                        pulseJob?.cancel()
+                        return@launch
+                    }
+                    delay(3000)
+                    pollBTDevices()
+                }
+            }
+            "bt_jammer" -> {
+                lifecycleScope.launch { loadBTDeviceList() }
+            }
+            "wifi_scan" -> {
+                lifecycleScope.launch {
+                    Esp32Client.wifiScanNetworksPost()
+                    delay(2000)
+                    loadNetworkList()
+                }
+            }
+            "deauth" -> {
+                lifecycleScope.launch { loadNetworkListForDeauth() }
+            }
+            "eviltwin" -> {
+                lifecycleScope.launch { loadNetworkListForEvilTwin() }
+            }
+            "crack" -> {
+                lifecycleScope.launch { runCrackFlow() }
+            }
+            "drone_jammer" -> {
+                lifecycleScope.launch {
+                    tvStatusTitle.text = "DRONE JAMMER"
+                    tvStatusDetail.text = "868 / 915 MHz · Bloqueando"
+                    startPulse(Color.parseColor("#EF4444"))
+                    Esp32Client.droneJammerStart()
+                    pollGenericStatus()
+                }
+            }
+            "camera_freeze" -> {
+                lifecycleScope.launch {
+                    tvStatusTitle.text = "CAMERA FREEZE"
+                    tvStatusDetail.text = "Bloqueando transmissão de vídeo"
+                    startPulse(Color.parseColor("#F59E0B"))
+                    Esp32Client.cameraFreezeStart()
+                    pollGenericStatus()
+                }
+            }
+            "bf_gate" -> {
+                lifecycleScope.launch {
+                    tvProgressLabel.text = "BRUTE FORCE PORTÃO"
+                    Esp32Client.bfGateStart()
+                    pollBruteForce()
+                }
+            }
+            "bf_car" -> {
+                lifecycleScope.launch {
+                    tvProgressLabel.text = "BRUTE FORCE CARRO"
+                    Esp32Client.bfCarStart(param)
+                    pollBruteForce()
+                }
+            }
+        }
+    }
+
+    private fun stopAndFinish() {
+        pollJob?.cancel()
+        timerJob?.cancel()
+        pulseJob?.cancel()
+        isRunning = false
+
+        val tool = intent.getStringExtra(EXTRA_TOOL) ?: ""
+        // Usa versões *Fast com timeout de 3s para não travar a UI
+        // Se o ESP32 não responder em 3s, desiste e fecha mesmo assim
+        Thread {
+            try {
+                runBlocking {
+                    when (tool) {
+                        "nrf24_scanner"  -> Esp32Client.nrf24ScannerStopFast()
+                        "nrf24_jammer"   -> Esp32Client.nrf24JammerStopFast()
+                        "cc1101_rolljam" -> Esp32Client.cc1101RollJamStopFast()
+                        "cc1101_jammer"  -> Esp32Client.cc1101JammerStopFast()
+                        "cc1101_analyzer"-> Esp32Client.cc1101AnalyzerStopFast()
+                        "bt_jammer"      -> Esp32Client.btJammerStopFast()
+                        "deauth"         -> Esp32Client.deauthStopFast()
+                        "eviltwin"       -> Esp32Client.eviltwinStopFast()
+                        "drone_jammer"   -> Esp32Client.droneJammerStopFast()
+                        "camera_freeze"  -> Esp32Client.cameraFreezeStopFast()
+                        "bf_gate"        -> Esp32Client.bfGateStopFast()
+                        "bf_car"         -> Esp32Client.bfCarStopFast()
+                        else -> {}
+                    }
+                }
+            } catch (_: Exception) { }
+            runOnUiThread {
+                try { barChart.reset() } catch (_: Exception) {}
+                finish()
+            }
+        }.start()
+    }
+
+    override fun onBackPressed() { stopAndFinish() }
+
+    private fun setStatusRunning(running: Boolean) {
+        isRunning = running
+        runOnUiThread {
+            if (running) {
+                tvStatusIndicator.text = "ATIVO"
+                tvStatusIndicator.setTextColor(Color.parseColor("#22C55E"))
+            } else {
+                tvStatusIndicator.text = "PARADO"
+                tvStatusIndicator.setTextColor(Color.parseColor("#EF4444"))
+            }
+        }
+    }
+
+    private fun startTimer() {
+        timerJob = lifecycleScope.launch {
+            while (true) {
+                val elapsed = ((System.currentTimeMillis() - startTime) / 1000)
+                val min = String.format("%02d", elapsed / 60)
+                val sec = String.format("%02d", elapsed % 60)
+                runOnUiThread { tvStatusTimer.text = "$min:$sec" }
+                delay(1000)
+            }
+        }
+    }
+
+    private fun startPulse(color: Int) {
+        pulseJob?.cancel()
+        pulseJob = lifecycleScope.launch {
+            val gd = GradientDrawable()
+            gd.shape = GradientDrawable.OVAL
+            val baseColor = Color.argb(80, Color.red(color), Color.green(color), Color.blue(color))
+            gd.setColor(baseColor)
+            gd.setStroke(2, color)
+            runOnUiThread { pulseCircle.background = gd }
+
+            while (true) {
+                for (alpha in 80..220 step 8) {
+                    if (!isRunning) break
+                    val c = Color.argb(alpha, Color.red(color), Color.green(color), Color.blue(color))
+                    runOnUiThread { gd.setColor(c) }
+                    delay(24)
+                }
+                for (alpha in 220 downTo 80 step 8) {
+                    if (!isRunning) break
+                    val c = Color.argb(alpha, Color.red(color), Color.green(color), Color.blue(color))
+                    runOnUiThread { gd.setColor(c) }
+                    delay(24)
+                }
+            }
+        }
+    }
+
+    private suspend fun pollNRF24Scanner() {
+        pollJob = lifecycleScope.launch {
+            var errorCount = 0
+            var triedFallback = false
+            while (true) {
+                if (!isRunning) break
+                try {
+                    // NOVO: usa /api/nrf24/spec (64 barras estilo Flipper)
+                    val json = Esp32Client.nrf24SpecData()
+                    if (json == null) {
+                        // Fallback para endpoint antigo se firmware não tiver /spec
+                        if (!triedFallback) {
+                            triedFallback = true
+                            val oldJson = Esp32Client.nrf24ScanData()
+                            if (oldJson != null) {
+                                val obj = JSONObject(oldJson)
+                                val barsArr = obj.getJSONArray("bars")
+                                val values = mutableListOf<Int>()
+                                for (i in 0 until barsArr.length()) {
+                                    val rssi = jsonArrEntryToInt(barsArr, i, -100)
+                                    values.add((rssi + 100).coerceIn(0, 60))
+                                }
+                                runOnUiThread {
+                                    barChart.setBars(values, 60)
+                                    tvInfoText.text = "SCAN 2.4GHz (modo legado 16ch)"
+                                    tvInfoText2.text = "Atualize o firmware p/ 64ch"
+                                }
+                            }
+                        }
+                        errorCount++
+                        if (errorCount > 5) {
+                            runOnUiThread { tvInfoText.text = "Sem resposta do ESP32" }
+                            delay(2000)
+                            continue
+                        }
+                        delay(400)
+                        continue
+                    }
+                    errorCount = 0
+                    val obj = JSONObject(json)
+
+                    if (obj.has("status") && obj.optString("status") == "error") {
+                        runOnUiThread {
+                            tvInfoText.text = "Erro: ${obj.optString("message", "?")}"
+                        }
+                        delay(2000)
+                        continue
+                    }
+
+                    val barsArr = obj.getJSONArray("bars")
+                    val peaksArr = obj.optJSONArray("peaks")
+                    val frames = obj.optLong("frames", 0)
+                    val maxH = obj.optInt("max_height", 40)
+
+                    val values = mutableListOf<Int>()
+                    for (i in 0 until barsArr.length()) {
+                        values.add(jsonArrEntryToInt(barsArr, i, 0).coerceIn(0, maxH))
+                    }
+
+                    val peaks = mutableListOf<Int>()
+                    if (peaksArr != null) {
+                        for (i in 0 until peaksArr.length()) {
+                            peaks.add(jsonArrEntryToInt(peaksArr, i, 0).coerceIn(0, maxH))
+                        }
+                    }
+
+                    runOnUiThread {
+                        barChart.setBars(values, maxH)
+                        if (peaks.isNotEmpty()) barChart.setExternalPeaks(peaks, maxH)
+                        tvInfoText.text = "SCAN 2.4GHz · 64ch"
+                        tvInfoText2.text = "F:$frames"
+                    }
+                } catch (_: Exception) {
+                }
+                delay(200)
+            }
+        }
+    }
+
+    private suspend fun pollCC1101Analyzer() {
+        pollJob = lifecycleScope.launch {
+            var errorCount = 0
+            while (true) {
+                if (!isRunning) break
+                try {
+                    val data = Esp32Client.cc1101AnalyzerData()
+                    if (data == null) {
+                        errorCount++
+                        if (errorCount <= 3) {
+                            delay(1000)
+                            continue
+                        }
+                        runOnUiThread {
+                            tvInfoText.text = "Endpoint indisponível"
+                            tvInfoText2.text = "Atualize o firmware"
+                        }
+                        delay(5000)
+                        continue
+                    }
+                    errorCount = 0
+                    val obj = JSONObject(data)
+
+                    if (obj.has("status") && obj.optString("status") == "error") {
+                        runOnUiThread {
+                            tvInfoText.text = "Erro: ${obj.optString("message", "?")}"
+                        }
+                        delay(3000)
+                        continue
+                    }
+
+                    val barsArr = obj.getJSONArray("bars")
+                    val values = mutableListOf<Int>()
+                    for (i in 0 until barsArr.length()) {
+                        values.add(jsonArrEntryToInt(barsArr, i, default = 0).coerceIn(0, 40))
+                    }
+
+                    runOnUiThread {
+                        barChart.setBars(values, 40)
+                        tvInfoText.text = "Espectro Sub-GHz · 64 pontos"
+                        if (obj.has("freqs")) {
+                            val freqsArr = obj.getJSONArray("freqs")
+                            if (freqsArr.length() > 0) {
+                                tvInfoText2.text = "${freqsArr.getInt(0)}–${freqsArr.getInt(freqsArr.length()-1)} MHz"
+                            }
+                        }
+                    }
+                } catch (_: Exception) {
+                }
+                delay(300)
+            }
+        }
+    }
+
+    private fun jsonArrEntryToInt(arr: org.json.JSONArray, idx: Int, default: Int): Int {
+        return try {
+            when (val v = arr.get(idx)) {
+                is Number    -> v.toInt()
+                is String    -> {
+                    if (v.isNotEmpty()) v[0].code.toByte().toInt() else default
+                }
+                is Boolean   -> if (v) 1 else 0
+                else         -> default
+            }
+        } catch (_: Exception) { default }
+    }
+
+    private suspend fun pollGenericStatus() {
+        pollJob = lifecycleScope.launch {
+            var failCount = 0
+            while (true) {
+                if (!isRunning) break
+                try {
+                    val connected = Esp32Client.checkConnection()
+                    if (!connected) {
+                        failCount++
+                        // 5 falhas consecutivas (10s) = desiste
+                        if (failCount >= 5) {
+                            setStatusRunning(false)
+                            runOnUiThread { tvStatusDetail.text = "ESP32 desconectado!" }
+                            break
+                        }
+                    } else {
+                        failCount = 0
+                    }
+                } catch (_: Exception) { failCount++ }
+                delay(2000)
+            }
+        }
+    }
+
+    private suspend fun pollCaptureStatus() {
+        pollJob = lifecycleScope.launch {
+            var waited = 0
+            while (true) {
+                if (!isRunning) break
+                try {
+                    val json = Esp32Client.checkStatusJson()
+                    if (json != null) {
+                        val obj = JSONObject(json)
+                        val capturing = obj.optBoolean("cc1101_capturing", false)
+                        val signalCount = obj.optInt("cc1101_signals", 0)
+                        runOnUiThread {
+                            tvStatusDetail.text = "Varrendo… Sinais: $signalCount"
+                        }
+                        if (!capturing) {
+                            runOnUiThread {
+                                tvStatusTitle.text = "CAPTURADO!"
+                                tvStatusDetail.text = "Sinal capturado com sucesso"
+                            }
+                            setStatusRunning(false)
+                            break
+                        }
+                    }
+                } catch (_: Exception) {}
+                delay(1000)
+                waited++
+                if (waited > 120) {
+                    runOnUiThread { tvStatusDetail.text = "Timeout — tente novamente" }
+                    setStatusRunning(false)
+                    break
+                }
+            }
+        }
+    }
+
+    private suspend fun pollBruteForce() {
+        pollJob = lifecycleScope.launch {
+            while (true) {
+                if (!isRunning) break
+                try {
+                    var json: String? = null
+                    try { json = Esp32Client.bfStatus() } catch (_: Exception) {}
+                    if (json == null) { delay(500); continue }
+                    val obj = JSONObject(json)
+                    val running = obj.optBoolean("running", false)
+                    val current = obj.optInt("current_index", 0)
+                    // FIX: usa campo 'total' dinâmico (gate_total era fixo em 16.7M mesmo para BF Car)
+                    val total = if (obj.has("total")) obj.optInt("total", 1)
+                                else obj.optInt("gate_total", 1)
+                    val totalSafe = total.coerceAtLeast(1)
+                    val percent = (current * 100 / totalSafe).coerceIn(0, 100)
+                    val mode = obj.optString("mode", "")
+                    val brandName = obj.optString("brand_name", "")
+
+                    val finished = !running
+                    runOnUiThread {
+                        if (finished) {
+                            tvProgressText.text = "Concluído"
+                            tvProgressPercent.text = "100%"
+                            progressBar.progress = 100
+                        } else {
+                            tvProgressText.text = "$current / $totalSafe"
+                            tvProgressPercent.text = "$percent%"
+                            progressBar.progress = percent
+                        }
+                        // Atualiza label com modo + marca se for BF Car
+                        if (mode == "car" && brandName.isNotEmpty()) {
+                            tvProgressLabel.text = "BF CARRO · $brandName"
+                        } else if (mode == "gate") {
+                            tvProgressLabel.text = "BRUTE FORCE PORTÃO"
+                        }
+                    }
+                    if (finished) {
+                        setStatusRunning(false)
+                        break
+                    }
+                } catch (_: Exception) {}
+                delay(500)
+            }
+        }
+    }
+    private suspend fun pollBTDevices() {
+        pollJob = lifecycleScope.launch {
+            var attempts = 0
+            while (attempts < 20 && isRunning) {
+                try {
+                    val json = Esp32Client.btStatus()
+                    if (json == null) {
+                        attempts++
+                        delay(1000)
+                        continue
+                    }
+                    val obj = JSONObject(json)
+                    val scanning = obj.optBoolean("scanning", false)
+                    if (!scanning) {
+                        loadBTDeviceListReadOnly()
+                        break
+                    }
+                    runOnUiThread {
+                        tvStatusDetail.text = "Escaneando… ${attempts}s"
+                    }
+                } catch (_: Exception) {}
+                attempts++
+                delay(1000)
+            }
+            loadBTDeviceListReadOnly()
+        }
+    }
+
+    private fun createListItem(title: String, subtitle: String, accentColor: Int,
+                               clickable: Boolean = false, onClick: (() -> Unit)? = null): View {
+        val rippleForeground = if (clickable) {
+            val attrs = intArrayOf(android.R.attr.selectableItemBackground)
+            val ta = obtainStyledAttributes(attrs)
+            val d = ta.getDrawable(0)
+            ta.recycle()
+            d
+        } else null
+
+        val item = LinearLayout(this).apply {
+            orientation = LinearLayout.HORIZONTAL
+            background = androidx.core.content.ContextCompat.getDrawable(
+                this@ToolViewerActivity, R.drawable.list_item_bg
+            )
+            setPadding(dp(18), dp(16), dp(18), dp(16))
+            gravity = Gravity.CENTER_VERTICAL
+            if (clickable && onClick != null) {
+                setOnClickListener { onClick() }
+                isClickable = true
+                isFocusable = true
+                if (rippleForeground != null) foreground = rippleForeground
+            }
+        }
+
+        val accent = View(this).apply {
+            layoutParams = LinearLayout.LayoutParams(dp(4), dp(36))
+            setBackgroundColor(accentColor)
+        }
+        item.addView(accent)
+
+        val textCol = LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
+            layoutParams = LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f)
+            setPadding(dp(16), 0, 0, 0)
+        }
+
+        val tvT = TextView(this).apply {
+            text = title
+            setTextColor(Color.parseColor("#E6EAF2"))
+            textSize = 15f
+            setTypeface(null, android.graphics.Typeface.BOLD)
+            letterSpacing = 0.02f
+        }
+        textCol.addView(tvT)
+
+        if (subtitle.isNotEmpty()) {
+            val tvS = TextView(this).apply {
+                text = subtitle
+                setTextColor(Color.parseColor("#8A93A2"))
+                textSize = 12f
+                letterSpacing = 0.02f
+            }
+            textCol.addView(tvS)
+        }
+
+        item.addView(textCol)
+
+        if (clickable) {
+            val tvChevron = TextView(this).apply {
+                text = "\u25B6"
+                setTextColor(Color.parseColor("#5A6473"))
+                textSize = 12f
+                gravity = Gravity.CENTER_VERTICAL
+            }
+            item.addView(tvChevron)
+        }
+
+        val params = LinearLayout.LayoutParams(
+            LinearLayout.LayoutParams.MATCH_PARENT,
+            LinearLayout.LayoutParams.WRAP_CONTENT
+        )
+        params.bottomMargin = dp(10)
+        item.layoutParams = params
+
+        return item
+    }
+
+    private fun dp(value: Int): Int {
+        val density = android.content.res.Resources.getSystem().displayMetrics.density
+        return (value * density).toInt()
+    }
+
+    private fun clearList() {
+        runOnUiThread { listContent.removeAllViews() }
+    }
+
+    private suspend fun loadSignalListReadOnly() {
+        try {
+            val json = Esp32Client.cc1101GetSignals() ?: return
+            val obj = JSONObject(json)
+            val arr = obj.getJSONArray("signals")
+            clearList()
+            if (arr.length() == 0) {
+                runOnUiThread {
+                    listContent.addView(createListItem(
+                        "Nenhum sinal", "Use Copy para capturar", Color.parseColor("#EF4444")
+                    ))
+                }
+                return
+            }
+            for (i in 0 until arr.length()) {
+                val sig = arr.getJSONObject(i)
+                val name = sig.optString("name", "Sinal $i")
+                val freq = sig.optLong("frequency", 0) / 1000000
+                val id = sig.optInt("id", i)
+                runOnUiThread {
+                    listContent.addView(createListItem(
+                        name, "${freq} MHz  ·  ID: $id", Color.parseColor("#00D4FF")
+                    ))
+                }
+            }
+            setStatusRunning(false)
+        } catch (e: Exception) {
+            runOnUiThread { Toast.makeText(this, "Erro: ${e.message}", Toast.LENGTH_SHORT).show() }
+        }
+    }
+
+    private suspend fun loadSignalList() {
+        try {
+            val json = Esp32Client.cc1101GetSignals() ?: return
+            val obj = JSONObject(json)
+            val arr = obj.getJSONArray("signals")
+            clearList()
+            if (arr.length() == 0) {
+                runOnUiThread {
+                    listContent.addView(createListItem(
+                        "Nenhum sinal", "Use Copy para capturar", Color.parseColor("#EF4444")
+                    ))
+                }
+                return
+            }
+            for (i in 0 until arr.length()) {
+                val sig = arr.getJSONObject(i)
+                val name = sig.optString("name", "Sinal $i")
+                val freq = sig.optLong("frequency", 0) / 1000000
+                val id = sig.optInt("id", i)
+                val captureId = id
+                runOnUiThread {
+                    listContent.addView(createListItem(
+                        name, "${freq} MHz  ·  ID: $id", Color.parseColor("#00D4FF"), true
+                    ) {
+                        lifecycleScope.launch {
+                            Toast.makeText(this@ToolViewerActivity, "Reproduzindo $name…", Toast.LENGTH_SHORT).show()
+                            Esp32Client.cc1101Replay(captureId)
+                            Toast.makeText(this@ToolViewerActivity, "Replay OK!", Toast.LENGTH_SHORT).show()
+                        }
+                    })
+                }
+            }
+            setStatusRunning(false)
+        } catch (e: Exception) {
+            runOnUiThread { Toast.makeText(this, "Erro: ${e.message}", Toast.LENGTH_SHORT).show() }
+        }
+    }
+
+    private suspend fun loadSignalListForKeeloq() {
+        try {
+            keeloqPanel.visibility = View.GONE
+            listContainer.visibility = View.VISIBLE
+
+            val json = Esp32Client.cc1101GetSignals() ?: return
+            val obj = JSONObject(json)
+            val arr = obj.getJSONArray("signals")
+            clearList()
+
+            runOnUiThread {
+                val header = TextView(this).apply {
+                    text = "Selecione um sinal para Rolling Code:"
+                    setTextColor(Color.parseColor("#22C55E"))
+                    textSize = 14f
+                    setTypeface(null, android.graphics.Typeface.BOLD)
+                    setPadding(dp(4), 0, 0, dp(16))
+                    letterSpacing = 0.02f
+                }
+                listContent.addView(header)
+            }
+
+            if (arr.length() == 0) {
+                runOnUiThread {
+                    listContent.addView(createListItem(
+                        "Nenhum sinal", "Use Copy para capturar primeiro", Color.parseColor("#EF4444")
+                    ))
+                }
+                return
+            }
+
+            for (i in 0 until arr.length()) {
+                val sig = arr.getJSONObject(i)
+                val name = sig.optString("name", "Sinal $i")
+                val freq = sig.optLong("frequency", 0) / 1000000
+                val id = sig.optInt("id", i)
+                val captureId = id
+                runOnUiThread {
+                    listContent.addView(createListItem(
+                        name, "${freq} MHz  ·  ID: $id", Color.parseColor("#22C55E"), true
+                    ) {
+                        lifecycleScope.launch { processKeeloq(captureId) }
+                    })
+                }
+            }
+            setStatusRunning(false)
+        } catch (e: Exception) {
+            runOnUiThread { Toast.makeText(this, "Erro: ${e.message}", Toast.LENGTH_SHORT).show() }
+        }
+    }
+
+    private suspend fun processKeeloq(signalId: Int) {
+        try {
+            runOnUiThread {
+                listContainer.visibility = View.GONE
+                keeloqPanel.visibility = View.VISIBLE
+                tvKeeloqStatus.text = "Lendo sinal bruto…"
+                startPulse(Color.parseColor("#22C55E"))
+            }
+
+            val rawJson = Esp32Client.cc1101GetRaw(signalId)
+            if (rawJson == null) {
+                runOnUiThread { tvKeeloqStatus.text = "Erro ao ler sinal" }
+                return
+            }
+
+            runOnUiThread { tvKeeloqStatus.text = "Processando Keeloq…" }
+
+            val json = JSONObject(rawJson)
+            val frequency = json.getLong("frequency")
+            val length = json.getInt("length")
+            val timingsArray = json.getJSONArray("timings")
+            val timings = mutableListOf<Int>()
+            for (i in 0 until length) timings.add(timingsArray.getInt(i))
+
+            if (timings.size < 4) {
+                runOnUiThread { tvKeeloqStatus.text = "Sinal muito curto" }
+                return
+            }
+
+            val result = SubGhzProcessor.processRollingCode(timings)
+            if (result == null) {
+                runOnUiThread {
+                    tvKeeloqStatus.text = "Protocolo fixo · Fazendo replay…"
+                }
+                Esp32Client.cc1101Replay(signalId)
+                runOnUiThread { tvKeeloqStatus.text = "Replay enviado!" }
+                return
+            }
+
+            val (protocol, newTimings) = result
+            runOnUiThread {
+                tvKeeloqStatus.text = "${protocol.name}\nTransmitindo próximo código…"
+            }
+
+            val success = Esp32Client.cc1101TransmitRaw(protocol.frequency, newTimings)
+            runOnUiThread {
+                tvKeeloqStatus.text = if (success) "${protocol.name}\nCódigo transmitido com sucesso!"
+                                       else "Falha na transmissão"
+            }
+        } catch (e: Exception) {
+            runOnUiThread { tvKeeloqStatus.text = "Erro: ${e.message}" }
+        }
+    }
+
+    private suspend fun loadNetworkList() {
+        try {
+            val json = Esp32Client.wifiScanNetworks() ?: return
+            val obj = JSONObject(json)
+            val arr = obj.getJSONArray("networks")
+            clearList()
+            if (arr.length() == 0) {
+                runOnUiThread {
+                    listContent.addView(createListItem(
+                        "Nenhuma rede", "Nenhuma rede encontrada", Color.parseColor("#EF4444")
+                    ))
+                }
+                return
+            }
+            for (i in 0 until arr.length()) {
+                val net = arr.getJSONObject(i)
+                val ssid = net.optString("ssid", "?")
+                val channel = net.optInt("channel", 0)
+                val rssi = net.optInt("rssi", 0)
+                val encrypted = net.optBoolean("encrypted", false)
+                val bssid = net.optString("bssid", "")
+                val lockIcon = if (encrypted) "  [WPA]" else "  [OPEN]"
+                runOnUiThread {
+                    listContent.addView(createListItem(
+                        ssid, "CH:$channel  ·  RSSI:$rssi$lockIcon  ·  $bssid",
+                        Color.parseColor("#EF4444")
+                    ))
+                }
+            }
+            setStatusRunning(false)
+        } catch (e: Exception) {
+            runOnUiThread { Toast.makeText(this, "Erro: ${e.message}", Toast.LENGTH_SHORT).show() }
+        }
+    }
+
+    private suspend fun loadNetworkListForDeauth() {
+        try {
+            val json = Esp32Client.wifiScanNetworks() ?: return
+            val obj = JSONObject(json)
+            val arr = obj.getJSONArray("networks")
+            clearList()
+
+            runOnUiThread {
+                val header = TextView(this).apply {
+                    text = "Selecione uma rede para Deauth:"
+                    setTextColor(Color.parseColor("#EF4444"))
+                    textSize = 14f
+                    setTypeface(null, android.graphics.Typeface.BOLD)
+                    setPadding(dp(4), 0, 0, dp(16))
+                    letterSpacing = 0.02f
+                }
+                listContent.addView(header)
+            }
+
+            for (i in 0 until arr.length()) {
+                val net = arr.getJSONObject(i)
+                val ssid = net.optString("ssid", "?")
+                val channel = net.optInt("channel", 0)
+                val rssi = net.optInt("rssi", 0)
+                val id = net.optInt("id", i)
+                val captureId = id
+                runOnUiThread {
+                    listContent.addView(createListItem(
+                        ssid, "CH:$channel  ·  RSSI:$rssi", Color.parseColor("#EF4444"), true
+                    ) {
+                        lifecycleScope.launch {
+                            switchToPanel("status")
+                            tvStatusTitle.text = "DEAUTH"
+                            tvStatusDetail.text = "Desautenticando $ssid"
+                            startPulse(Color.parseColor("#EF4444"))
+                            Esp32Client.deauthStart(captureId)
+                        }
+                    })
+                }
+            }
+            setStatusRunning(false)
+        } catch (e: Exception) {
+            runOnUiThread { Toast.makeText(this, "Erro: ${e.message}", Toast.LENGTH_SHORT).show() }
+        }
+    }
+
+    private suspend fun loadNetworkListForEvilTwin() {
+        try {
+            val json = Esp32Client.wifiScanNetworks() ?: return
+            val obj = JSONObject(json)
+            val arr = obj.getJSONArray("networks")
+            clearList()
+
+            runOnUiThread {
+                val header = TextView(this).apply {
+                    text = "Selecione uma rede para Evil Twin:"
+                    setTextColor(Color.parseColor("#F59E0B"))
+                    textSize = 14f
+                    setTypeface(null, android.graphics.Typeface.BOLD)
+                    setPadding(dp(4), 0, 0, dp(16))
+                    letterSpacing = 0.02f
+                }
+                listContent.addView(header)
+            }
+
+            for (i in 0 until arr.length()) {
+                val net = arr.getJSONObject(i)
+                val ssid = net.optString("ssid", "?")
+                val channel = net.optInt("channel", 0)
+                val rssi = net.optInt("rssi", 0)
+                val id = net.optInt("id", i)
+                val captureId = id
+                runOnUiThread {
+                    listContent.addView(createListItem(
+                        ssid, "CH:$channel  ·  RSSI:$rssi", Color.parseColor("#F59E0B"), true
+                    ) {
+                        lifecycleScope.launch {
+                            switchToPanel("status")
+                            tvStatusTitle.text = "EVIL TWIN"
+                            tvStatusDetail.text = "Clonando $ssid"
+                            startPulse(Color.parseColor("#F59E0B"))
+                            Esp32Client.eviltwinStart(captureId)
+                        }
+                    })
+                }
+            }
+            setStatusRunning(false)
+        } catch (e: Exception) {
+            runOnUiThread { Toast.makeText(this, "Erro: ${e.message}", Toast.LENGTH_SHORT).show() }
+        }
+    }
+
+    private suspend fun loadBTDeviceList() {
+        try {
+            val json = Esp32Client.btDevices() ?: return
+            val obj = JSONObject(json)
+            val arr = obj.getJSONArray("devices")
+            clearList()
+
+            runOnUiThread {
+                val header = TextView(this).apply {
+                    text = "Selecione um dispositivo BLE:"
+                    setTextColor(Color.parseColor("#3B82F6"))
+                    textSize = 14f
+                    setTypeface(null, android.graphics.Typeface.BOLD)
+                    setPadding(dp(4), 0, 0, dp(16))
+                    letterSpacing = 0.02f
+                }
+                listContent.addView(header)
+            }
+
+            if (arr.length() == 0) {
+                runOnUiThread {
+                    listContent.addView(createListItem(
+                        "Nenhum dispositivo", "Escaneie primeiro", Color.parseColor("#EF4444")
+                    ))
+                }
+                return
+            }
+
+            for (i in 0 until arr.length()) {
+                val dev = arr.getJSONObject(i)
+                val name = dev.optString("name", "BLE $i")
+                val rssi = dev.optInt("rssi", 0)
+                val id = dev.optInt("id", i)
+                val captureId = id
+                runOnUiThread {
+                    listContent.addView(createListItem(
+                        name, "RSSI: $rssi", Color.parseColor("#3B82F6"), true
+                    ) {
+                        lifecycleScope.launch {
+                            switchToPanel("status")
+                            tvStatusTitle.text = "BLE JAMMER"
+                            tvStatusDetail.text = "Jamming $name"
+                            startPulse(Color.parseColor("#3B82F6"))
+                            Esp32Client.btJammerStart(captureId)
+                        }
+                    })
+                }
+            }
+            setStatusRunning(false)
+        } catch (e: Exception) {
+            runOnUiThread { Toast.makeText(this, "Erro: ${e.message}", Toast.LENGTH_SHORT).show() }
+        }
+    }
+
+    private suspend fun loadBTDeviceListReadOnly() {
+        try {
+            val json = Esp32Client.btDevices() ?: return
+            val obj = JSONObject(json)
+            val arr = obj.getJSONArray("devices")
+
+            switchToPanel("list")
+            clearList()
+
+            if (arr.length() == 0) {
+                runOnUiThread {
+                    listContent.addView(createListItem(
+                        "Nenhum dispositivo", "Nenhum BLE encontrado", Color.parseColor("#EF4444")
+                    ))
+                }
+                return
+            }
+
+            for (i in 0 until arr.length()) {
+                val dev = arr.getJSONObject(i)
+                val name = dev.optString("name", "BLE $i")
+                val rssi = dev.optInt("rssi", 0)
+                runOnUiThread {
+                    listContent.addView(createListItem(
+                        name, "RSSI: $rssi", Color.parseColor("#3B82F6")
+                    ))
+                }
+            }
+            setStatusRunning(false)
+        } catch (e: Exception) {
+            runOnUiThread { Toast.makeText(this, "Erro: ${e.message}", Toast.LENGTH_SHORT).show() }
+        }
+    }
+
+    private suspend fun runCrackFlow() {
+        try {
+            runOnUiThread {
+                crackProgress.visibility = View.VISIBLE
+                tvCrackStatus.text = "Verificando handshake…"
+            }
+
+            val statusJson = Esp32Client.handshakeStatus()
+            if (statusJson == null) {
+                runOnUiThread { tvCrackStatus.text = "ESP32 fora do alcance" }
+                return
+            }
+
+            val status = JSONObject(statusJson)
+            val complete = status.optBoolean("complete", false)
+            val frames = status.optInt("frames", 0)
+
+            if (!complete || frames == 0) {
+                runOnUiThread { tvCrackStatus.text = "Nenhum handshake capturado\nUse Evil Twin primeiro!" }
+                return
+            }
+
+            runOnUiThread { tvCrackStatus.text = "Baixando PCAP ($frames frames)…" }
+
+            val pcapFile = File(filesDir, "handshake.pcap")
+            val downloaded = Esp32Client.handshakeDownload(pcapFile)
+            if (!downloaded || !pcapFile.exists()) {
+                runOnUiThread { tvCrackStatus.text = "Falha ao baixar PCAP" }
+                return
+            }
+
+            runOnUiThread {
+                tvCrackStatus.text = "Rodando aircrack…\nAguarde, pode demorar minutos"
+                crackProgress.isIndeterminate = true
+            }
+
+            AircrackRunner.crackHandshake(this, pcapFile) { foundKey ->
+                runOnUiThread {
+                    crackProgress.isIndeterminate = false
+                    crackProgress.visibility = View.GONE
+                    if (foundKey != null) {
+                        tvCrackStatus.text = "SENHA ENCONTRADA!\n$foundKey"
+                        tvCrackStatus.setTextColor(Color.parseColor("#22C55E"))
+                    } else {
+                        tvCrackStatus.text = "Senha não encontrada\nna wordlist"
+                    }
+                }
+            }
+            setStatusRunning(false)
+        } catch (e: Exception) {
+            runOnUiThread { tvCrackStatus.text = "Erro: ${e.message}" }
+        }
+    }
+
+    override fun onDestroy() {
+        super.onDestroy()
+        pollJob?.cancel()
+        timerJob?.cancel()
+        pulseJob?.cancel()
+        try { barChart.reset() } catch (_: Exception) {}
+    }
 }
-
-void stopAPIServer() {
-    if (!apiRunning) return;
-    apiServer.stop();
-    apiRunning = false;
-    Serial.println("[API] HTTP Server stopped");
-}
-
-// ============================================================
-// LOOP - adições mínimas para ferramentas funcionarem via APK
-// ============================================================
-
-// Forward declarations necessárias para os loops
-extern void cc1101CaptureLoop();
-extern void cc1101RollJamLoop();
-extern bool cc1101RollJamActive;
-extern void cc1101AnalyzerLoop();
-extern bool cc1101AnalyzerIsRunning();
-// NRF24 loops - ANTES faltavam, scanner não atualizava via APK
-extern int  nrf24JammerLoop();
-extern bool nrf24JammerActive;
-extern void nrf24SpecScan();
-extern void nrf24ScanLoop();
-extern bool nrf24IsScanning();
-extern void nrf24AnalyzeTick();
-extern bool nrf24IsAnalyzing();
-extern bool scannerRunning;
-// BruteForce loop
-extern void bfLoop();
-extern bool bfRunning;
-
-void apiLoop() {
-    if (apiRunning) apiServer.handleClient();
-
-    if (pendingDeauthStart) {
-        pendingDeauthStart = false;
-        startDeauth(pendingNetIdx);
-    }
-    if (pendingEvilTwinStart) {
-        pendingEvilTwinStart = false;
-        startEvilTwin(pendingNetIdx);
-    }
-    if (pendingDeauthStop) {
-        pendingDeauthStop = false;
-        stopDeauth();
-    }
-    if (pendingEvilTwinStop) {
-        pendingEvilTwinStop = false;
-        stopEvilTwin();
-    }
-
-    // TOOL LOOPS: CC1101 + NRF24 + BruteForce
-    // CORREÇÃO CRÍTICA: nrf24SpecScan() e nrf24ScanLoop() ANTES não eram
-    // chamados via API. Só rodavam dentro de renderNRF24Scanner() no menu.
-    // Quando o APK iniciava o scanner, os dados ficavam sempre zerados.
-    if (cc1101CopyActive)              cc1101CaptureLoop();
-    if (cc1101RollJamActive)           cc1101RollJamLoop();
-    if (cc1101AnalyzerIsRunning())     cc1101AnalyzerLoop();
-    if (nrf24JammerActive)             nrf24JammerLoop();
-    if (scannerRunning)                nrf24SpecScan();
-    if (nrf24IsScanning())             nrf24ScanLoop();
-    if (nrf24IsAnalyzing())            nrf24AnalyzeTick();
-    if (bfRunning)                     bfLoop();
-}
-
-bool isAPIServerRunning() { return apiRunning; }
