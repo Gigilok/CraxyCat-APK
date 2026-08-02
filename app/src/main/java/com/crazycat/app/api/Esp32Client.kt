@@ -26,9 +26,17 @@ object Esp32Client {
     private const val BASE_URL = "http://192.168.4.1:8080"
 
     private val client = OkHttpClient.Builder()
-        .connectTimeout(4, TimeUnit.SECONDS)
-        .readTimeout(6, TimeUnit.SECONDS)
-        .writeTimeout(4, TimeUnit.SECONDS)
+        .connectTimeout(8, TimeUnit.SECONDS)
+        .readTimeout(15, TimeUnit.SECONDS)
+        .writeTimeout(8, TimeUnit.SECONDS)
+        .retryOnConnectionFailure(true)
+        .build()
+
+    // Cliente para operações de STOP - timeout curto para não travar a UI
+    private val stopClient = OkHttpClient.Builder()
+        .connectTimeout(3, TimeUnit.SECONDS)
+        .readTimeout(3, TimeUnit.SECONDS)
+        .writeTimeout(3, TimeUnit.SECONDS)
         .retryOnConnectionFailure(false)
         .build()
 
@@ -41,6 +49,36 @@ object Esp32Client {
     }
 
     private fun clearError() { lastError = null }
+
+    // POST com timeout curto para operações de STOP (não trava a UI)
+    private suspend fun stopPost(endpoint: String): Boolean = withContext(Dispatchers.IO) {
+        try {
+            val request = Request.Builder()
+                .url("$BASE_URL$endpoint")
+                .post(FormBody.Builder().build())
+                .build()
+            val ok = stopClient.newCall(request).execute().use { it.isSuccessful }
+            if (ok) clearError() else recordError(java.io.IOException("HTTP stop failed"))
+            ok
+        } catch (e: Exception) {
+            recordError(e)
+            false
+        }
+    }
+
+    // Versões de STOP com timeout curto (3s) para não travar a UI
+    suspend fun nrf24ScannerStopFast(): Boolean = stopPost("/api/nrf24/scanner/stop")
+    suspend fun nrf24JammerStopFast(): Boolean = stopPost("/api/nrf24/jammer/stop")
+    suspend fun cc1101RollJamStopFast(): Boolean = stopPost("/api/cc1101/rolljam/stop")
+    suspend fun cc1101JammerStopFast(): Boolean = stopPost("/api/cc1101/jammer/stop")
+    suspend fun cc1101AnalyzerStopFast(): Boolean = stopPost("/api/cc1101/analyzer/stop")
+    suspend fun btJammerStopFast(): Boolean = stopPost("/api/attack/bt/jammer/stop")
+    suspend fun deauthStopFast(): Boolean = stopPost("/api/deauth/stop")
+    suspend fun eviltwinStopFast(): Boolean = stopPost("/api/eviltwin/stop")
+    suspend fun droneJammerStopFast(): Boolean = stopPost("/api/attack/drone/jammer/stop")
+    suspend fun cameraFreezeStopFast(): Boolean = stopPost("/api/attack/camera/freeze/stop")
+    suspend fun bfGateStopFast(): Boolean = stopPost("/api/attack/bf/gate/stop")
+    suspend fun bfCarStopFast(): Boolean = stopPost("/api/attack/bf/car/stop")
 
     private suspend fun sendPost(endpoint: String, params: Map<String, String> = emptyMap()): Boolean = withContext(Dispatchers.IO) {
         try {
